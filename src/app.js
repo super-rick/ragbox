@@ -281,9 +281,12 @@ async function performSearch(query) {
   const resultsContainer = $('#results-container');
 
   if (!query || !kbId) {
+    // Clear results when search bar is empty
+    resultsContainer.innerHTML = '';
+    $('#drop-zone').style.display = 'block';
+
     if (!kbId) {
       if (!state.get('knowledgeBases').length) {
-        resultsContainer.innerHTML = '';
         renderEmptyState(resultsContainer, {
           icon: '📚',
           title: t('search.empty.title'),
