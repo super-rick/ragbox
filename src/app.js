@@ -332,18 +332,15 @@ async function handleFiles(files) {
 
   if (validFiles.length === 0) return;
 
-  // Ensure model is loaded
-  if (!isModelReady()) {
-    try {
-      await initModel((progress) => {
-        if (progress.status === 'downloading') {
-          state.set('modelProgress', Math.round(progress.progress * 100));
-        }
-      });
-    } catch (err) {
-      showToast(t('model.error'), 'error');
-      return;
-    }
+  // Start model init in background (non-blocking for ingestion)
+  if (!isModelReady() && state.get('modelStatus') === 'idle') {
+    initModel((progress) => {
+      if (progress.status === 'downloading') {
+        state.set('modelProgress', Math.round(progress.progress * 100));
+      }
+    }).catch(() => {
+      console.warn('Model failed to load — will embed chunks later');
+    });
   }
 
   // Add to queue and process
@@ -411,14 +408,22 @@ async function processSingleFile(file, kbId, progressContainer) {
     // ─── 2. Chunk text ──────────────────────────────────────
     statusText.textContent = t('ingestion.chunking');
     const chunks = chunkText(text);
-    const estimatedTokens = estimateTokens(text);
 
-    // ─── 3. Generate embeddings ─────────────────────────────
-    statusText.textContent = t('ingestion.embedding');
-    const texts = chunks.map((c) => c.text);
-    const embeddings = await embed(texts);
+    // ─── 3. Generate embeddings (if model ready) ───────────
+    let embeddings = null;
+    if (isModelReady()) {
+      statusText.textContent = t('ingestion.embedding');
+      try {
+        const texts = chunks.map((c) => c.text);
+        embeddings = await embed(texts);
+      } catch {
+        console.warn('Embedding failed — storing chunks without vectors');
+      }
+    } else {
+      statusText.textContent = '⏳ Model loading, storing text only...';
+    }
 
-    // ─── 4. Store in IndexedDB ──────────────────────────────
+    // ─── 4. Store in IndexedDB (with or without embeddings) ─
     statusText.textContent = t('ingestion.storing');
     const doc = await addDocument({
       kbId,
@@ -434,7 +439,7 @@ async function processSingleFile(file, kbId, progressContainer) {
       docId: doc.id,
       kbId,
       text: c.text,
-      embedding: embeddings[i],
+      embedding: embeddings ? embeddings[i] : null,
       metadata: {
         pageNumber: c.metadata?.pageNumber || null,
         charStart: c.metadata?.charStart || 0,
