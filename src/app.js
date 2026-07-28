@@ -136,9 +136,14 @@ function setupEventListeners() {
     }
   });
 
-  // Settings button → navigate to settings
+  // Settings button → toggle settings page
   $('#settings-toggle').addEventListener('click', () => {
-    import('./router.js').then(({ navigate }) => navigate('settings'));
+    const settingsPage = document.getElementById('settings-page');
+    if (settingsPage.classList.contains('active')) {
+      hideSettingsPage();
+    } else {
+      showSettingsPage();
+    }
   });
   // Settings tab switching
   document.querySelectorAll('.settings-tab').forEach(tab => {
