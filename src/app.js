@@ -17,7 +17,7 @@ import { readFileAsArrayBuffer, readFileAsText, setupDragDrop, setupFileInput,
 import { initModel, embed, embedSingle, isModelReady, getModelInfo } from './embedder.js';
 import { hybridSearch, keywordSearch, highlightMatches } from './search.js';
 import { initLicense } from './license.js';
-import { initQAEngine, askQuestion, isWebGPUSupported, getEngineStatus, abortAnswer, isAnswering } from './qa.js';
+import { initQAEngine, askQuestion, isWebGPUSupported, getEngineStatus, getQAModelId, abortAnswer, isAnswering, unloadQAEngine } from './qa.js';
 import {
   getEmbeddingModelInfo, getQAModelInfo,
   getAvailableEmbeddingModels, getAvailableQAModels,
@@ -831,9 +831,11 @@ async function renderSettingsPage() {
     });
   }
 
-  // ─── Model selector change → update cache status ─────
+  // ─── Model selector change → update card + cache ─────
   embedSelect.onchange = () => {
-    updateEmbedCacheStatus(embedSelect.value);
+    const selected = embedSelect.value;
+    updateEmbeddingCardFromId(selected);
+    updateEmbedCacheStatus(selected);
   };
 
   // ─── Button event bindings (one-time) ───────────────────
@@ -842,6 +844,9 @@ async function renderSettingsPage() {
   const embedDownloadBtn = document.getElementById('embed-download-btn');
   embedDownloadBtn.onclick = async () => {
     const selected = embedSelect.value;
+    // Show selected model info immediately before download starts
+    updateEmbeddingCardFromId(selected);
+    updateEmbedCacheStatus(selected);
     if (selected !== getEmbeddingModelInfo().current.id) {
       // Different model selected — re-init needed
       showToast(`Switching to ${selected}. Re-index documents after download.`, 'info');
@@ -886,23 +891,42 @@ async function renderSettingsPage() {
     showToast('Cache cleared. Click Download to re-download.', 'info');
   };
 
+  // QA model selector change → update card + cache
+  qaSelect.onchange = () => {
+    const selected = qaSelect.value;
+    updateQACardFromId(selected);
+    checkModelCache(selected.split('-')[0]).then(cached => {
+      document.getElementById('qa-cache-status').textContent = cached ? '📦 Cache: cached' : '📦 Cache: not cached';
+    });
+  };
+
   // QA model download
   const qaDownloadBtn = document.getElementById('qa-download-btn');
   qaDownloadBtn.onclick = async () => {
+    const selected = qaSelect.value;
+    // Show selected info immediately
+    updateQACardFromId(selected);
+    document.getElementById('qa-progress-section').style.display = 'block';
+    document.getElementById('qa-progress-fill').style.width = '0%';
+    document.getElementById('qa-progress-label').textContent = '0%';
     qaDownloadBtn.disabled = true;
     qaDownloadBtn.textContent = '⏳ Loading...';
     try {
-      await initQAEngine((progress) => {
-        if (progress.status === 'downloading') {
-          const pct = Math.round(progress.progress * 100);
-          document.getElementById('qa-progress-section').style.display = 'block';
-          document.getElementById('qa-progress-fill').style.width = pct + '%';
-          document.getElementById('qa-progress-label').textContent = pct + '%';
-        } else if (progress.status === 'ready') {
-          document.getElementById('qa-progress-section').style.display = 'none';
-        }
+      await initQAEngine({
+        modelId: selected,
+        onProgress: (progress) => {
+          if (progress.status === 'downloading') {
+            const pct = Math.round(progress.progress * 100);
+            document.getElementById('qa-progress-fill').style.width = pct + '%';
+            document.getElementById('qa-progress-label').textContent = pct + '%';
+          } else if (progress.status === 'ready') {
+            document.getElementById('qa-progress-section').style.display = 'none';
+          }
+        },
       });
       showToast('QA model ready!', 'success');
+      updateQACard('ready');
+      refreshCacheInfo();
     } catch (err) {
       showToast('Failed to load QA model: ' + err.message, 'error');
     } finally {
@@ -979,11 +1003,36 @@ function updateEmbeddingCard(status) {
   document.getElementById('embed-model-size').textContent = info.current.size;
 }
 
+/**
+ * Update the embedding model card to show info for a specific model ID
+ * (used when user selects a model from dropdown but hasn't downloaded yet).
+ */
+function updateEmbeddingCardFromId(modelId) {
+  const available = getAvailableEmbeddingModels();
+  const model = available.find(m => m.id === modelId);
+  if (!model) return;
+  document.getElementById('embed-model-name').textContent = model.name;
+  document.getElementById('embed-model-dims').textContent = model.dims + '-dim';
+  document.getElementById('embed-model-size').textContent = model.size;
+  document.getElementById('embed-status-badge').textContent = 'Idle';
+  document.getElementById('embed-status-badge').className = 'model-status-badge idle';
+}
+
 function updateQACard(status) {
   if (!status) return;
   const badge = document.getElementById('qa-status-badge');
   badge.textContent = status.charAt(0).toUpperCase() + status.slice(1);
   badge.className = 'model-status-badge ' + status;
+}
+
+function updateQACardFromId(modelId) {
+  const available = getAvailableQAModels();
+  const model = available.find(m => m.id === modelId);
+  if (!model) return;
+  document.getElementById('qa-model-name').textContent = model.display || model.name;
+  document.getElementById('qa-status-badge').textContent = 'Idle';
+  document.getElementById('qa-status-badge').className = 'model-status-badge idle';
+  document.getElementById('qa-cache-status').textContent = '📦 Cache: checking...';
 }
 
 async function refreshCacheInfo() {

@@ -17,9 +17,8 @@ import { state } from './state.js';
 let engine = null;
 let engineStatus = 'idle'; // idle | loading | ready | error
 let currentAbortController = null;
+let currentModelId = 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC';
 
-const MODEL_ID = 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC';
-const MODEL_DISPLAY = 'Qwen2.5-0.5B-Instruct';
 const MAX_CONTEXT_CHUNKS = 5;
 
 /**
@@ -36,11 +35,26 @@ export function getEngineStatus() {
   return engineStatus;
 }
 
+export function getQAModelId() {
+  return currentModelId;
+}
+
 /**
  * Initialize the WebLLM engine.
- * Downloads model (~500MB) on first call.
+ * @param {object|function} [opts] - Options or progress callback
+ * @param {function} [opts.onProgress] - Progress callback
+ * @param {string} [opts.modelId] - Model ID to load
  */
-export async function initQAEngine(onProgress) {
+export async function initQAEngine(opts = {}) {
+  const onProgress = typeof opts === 'function' ? opts : opts.onProgress;
+  const newModelId = (typeof opts === 'object' ? opts.modelId : null) || currentModelId;
+
+  // If switching to a different model, unload current first
+  if (newModelId !== currentModelId) {
+    unloadQAEngine();
+    currentModelId = newModelId;
+  }
+
   if (engine) return;
   if (engineStatus === 'loading') return;
 
@@ -66,7 +80,7 @@ export async function initQAEngine(onProgress) {
       }
     };
 
-    engine = await webllm.CreateMLCEngine(MODEL_ID, {
+    engine = await webllm.CreateMLCEngine(currentModelId, {
       initProgressCallback,
     });
 
@@ -80,6 +94,17 @@ export async function initQAEngine(onProgress) {
     onProgress?.({ status: 'error', error: err.message });
     throw err;
   }
+}
+
+/**
+ * Unload the current QA engine.
+ */
+export function unloadQAEngine() {
+  engine = null;
+  engineStatus = 'idle';
+  currentAbortController = null;
+  state.set('qaModelStatus', 'idle');
+  state.set('qaModelProgress', 0);
 }
 
 /**

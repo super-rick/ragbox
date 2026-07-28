@@ -7,7 +7,7 @@
 
 import { state } from './state.js';
 import { getModelInfo, isModelReady } from './embedder.js';
-import { isWebGPUSupported, getEngineStatus } from './qa.js';
+import { isWebGPUSupported, getEngineStatus, getQAModelId } from './qa.js';
 
 const SW_MODEL_CACHE = 'rag-tools-models-v1';
 
@@ -49,10 +49,9 @@ export function getEmbeddingModelInfo() {
  * Get current QA model information.
  */
 export function getQAModelInfo() {
-  // The current QA model is hard-coded in qa.js; for now we return static info.
-  // In a future version this will be configurable.
+  const currentId = getQAModelId();
   return {
-    current: AVAILABLE_QA_MODELS[0],
+    current: AVAILABLE_QA_MODELS.find(m => m.id === currentId) || AVAILABLE_QA_MODELS[0],
     status: getEngineStatus(),
     webgpu: isWebGPUSupported(),
   };
