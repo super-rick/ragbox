@@ -15,7 +15,7 @@ import { extractPDFText, getPageCount } from './pdf-extractor.js';
 import { readFileAsArrayBuffer, readFileAsText, setupDragDrop, setupFileInput,
          validateFile, stripMarkdown } from './file-handler.js';
 import { initModel, embed, embedSingle, isModelReady, getModelInfo } from './embedder.js';
-import { search, highlightMatches } from './search.js';
+import { hybridSearch, keywordSearch, highlightMatches } from './search.js';
 
 // ─── Initialization ──────────────────────────────────────────────
 
@@ -296,22 +296,20 @@ async function performSearch(query) {
     return;
   }
 
-  // Ensure model is loaded
-  if (!isModelReady()) {
-    renderLoadingState(resultsContainer, { message: 'Loading search model...' });
-    try {
-      await initModel();
-    } catch {
-      renderErrorState(resultsContainer, { message: t('model.error') });
-      return;
-    }
+  state.set('isSearching', true);
+
+  // Try to init model in background (non-blocking)
+  // search works via keyword even without model
+  if (!isModelReady() && state.get('modelStatus') === 'idle') {
+    initModel().catch(() => {}); // fire-and-forget; model loads when it loads
   }
 
-  state.set('isSearching', true);
+  // Show brief loading for search
   renderLoadingState(resultsContainer, { message: 'Searching...' });
 
   try {
-    const results = await search(query, kbId, { topK: 10 });
+    // Hybrid search: keyword always works, semantic adds on top when model is ready
+    const results = await hybridSearch(query, kbId, { topK: 10, blend: 0.4 });
 
     if (results.length === 0) {
       renderEmptyState(resultsContainer, {
@@ -363,6 +361,18 @@ function renderSearchResults(results, query) {
     const scoreBadge = createElement('span', { className: 'result-score' });
     scoreBadge.textContent = scorePct + '%';
     header.append(scoreBadge);
+
+    // Show search type badge (keyword vs semantic)
+    if (result.semScore && result.semScore > 0) {
+      const typeBadge = createElement('span', {
+        style: {
+          fontSize: '0.6875rem', padding: '1px 5px', borderRadius: '99px',
+          background: 'var(--accent-light)', color: 'var(--accent)',
+          marginLeft: '0.375rem',
+        },
+      }, ['AI']);
+      header.append(typeBadge);
+    }
     item.append(header);
 
     // Text with highlights
