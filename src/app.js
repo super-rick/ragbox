@@ -18,6 +18,11 @@ import { initModel, embed, embedSingle, isModelReady, getModelInfo } from './emb
 import { hybridSearch, keywordSearch, highlightMatches } from './search.js';
 import { initLicense } from './license.js';
 import { initQAEngine, askQuestion, isWebGPUSupported, getEngineStatus } from './qa.js';
+import {
+  getEmbeddingModelInfo, getQAModelInfo,
+  getAvailableEmbeddingModels, getAvailableQAModels,
+  checkModelCache, getCacheInfo, clearModelCache,
+} from './models.js';
 
 // ─── Initialization ──────────────────────────────────────────────
 
@@ -124,7 +129,26 @@ function setupEventListeners() {
   });
 
   state.subscribe('route', (route) => {
-    // Route changes handled by hash router
+    if (route === 'settings') {
+      showSettingsPage();
+    } else {
+      hideSettingsPage();
+    }
+  });
+
+  // Settings button → navigate to settings
+  $('#settings-toggle').addEventListener('click', () => {
+    import('./router.js').then(({ navigate }) => navigate('settings'));
+  });
+  // Settings tab switching
+  document.querySelectorAll('.settings-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.settings-panel').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      const panel = document.getElementById('panel-' + tab.dataset.tab);
+      if (panel) panel.classList.add('active');
+    });
   });
 }
 
@@ -698,4 +722,235 @@ async function refreshStats() {
     chunkCount: stats.chunkCount,
     storageBytes: stats.storageBytes,
   });
+}
+
+// ─── Settings / Model Management ─────────────────────────────────
+
+function showSettingsPage() {
+  document.getElementById('results-area').style.display = 'none';
+  document.getElementById('search-bar').style.display = 'none';
+  document.getElementById('ingestion-progress').style.display = 'none';
+  document.getElementById('qa-panel').style.display = 'none';
+  document.getElementById('settings-page').classList.add('active');
+
+  renderSettingsPage();
+}
+
+function hideSettingsPage() {
+  document.getElementById('settings-page').classList.remove('active');
+  document.getElementById('results-area').style.display = 'flex';
+  document.getElementById('search-bar').style.display = 'block';
+}
+
+async function renderSettingsPage() {
+  // ─── Embedding model info ────────────────────────────────
+  const embedInfo = getEmbeddingModelInfo();
+  const embedSelect = document.getElementById('embed-model-select');
+  const availableEmbed = getAvailableEmbeddingModels();
+
+  // Populate dropdown
+  embedSelect.innerHTML = '';
+  for (const m of availableEmbed) {
+    const opt = document.createElement('option');
+    opt.value = m.id;
+    opt.textContent = `${m.name} (${m.dims}d, ${m.size}) — ${m.quality}`;
+    if (m.id === embedInfo.current.id) opt.selected = true;
+    embedSelect.appendChild(opt);
+  }
+
+  // Update info
+  updateEmbeddingCard(embedInfo.status);
+
+  // ─── QA model info ──────────────────────────────────────
+  const qaInfo = getQAModelInfo();
+  const qaSelect = document.getElementById('qa-model-select');
+  const availableQA = getAvailableQAModels();
+  const qaCard = document.getElementById('qa-model-card');
+
+  // Show QA card only if WebGPU available
+  const webgpuNote = document.getElementById('qa-webgpu-note');
+  if (qaInfo.webgpu) {
+    qaCard.style.display = 'block';
+    webgpuNote.style.display = 'none';
+
+    // Populate dropdown
+    qaSelect.innerHTML = '';
+    for (const m of availableQA) {
+      const opt = document.createElement('option');
+      opt.value = m.id;
+      opt.textContent = `${m.name} (${m.size}) — ${m.quality}`;
+      if (m.id === qaInfo.current.id) opt.selected = true;
+      qaSelect.appendChild(opt);
+    }
+
+    // Update info
+    updateQACard(qaInfo.status);
+  } else {
+    qaCard.style.display = 'block';
+    webgpuNote.style.display = 'flex';
+    document.getElementById('qa-status-badge').textContent = 'N/A';
+    document.getElementById('qa-status-badge').className = 'model-status-badge idle';
+    document.getElementById('qa-download-btn').disabled = true;
+  }
+
+  // ─── Cache info ─────────────────────────────────────────
+  refreshCacheInfo();
+
+  // ─── Cache status (async) ───────────────────────────────
+  checkModelCache('huggingface.co/Xenova/all-MiniLM-L6-v2').then(cached => {
+    document.getElementById('embed-cache-status').textContent = cached ? '📦 Cache: cached' : '📦 Cache: not cached';
+  });
+  if (qaInfo.webgpu) {
+    checkModelCache('Qwen2.5-0.5B').then(cached => {
+      document.getElementById('qa-cache-status').textContent = cached ? '📦 Cache: cached' : '📦 Cache: not cached';
+    });
+  }
+
+  // ─── Button event bindings (one-time) ───────────────────
+
+  // Embed model download
+  const embedDownloadBtn = document.getElementById('embed-download-btn');
+  embedDownloadBtn.onclick = async () => {
+    const selected = embedSelect.value;
+    if (selected !== getEmbeddingModelInfo().current.id) {
+      // Different model selected — re-init needed
+      showToast(`Switching to ${selected}. Re-index documents after download.`, 'info');
+    }
+    embedDownloadBtn.disabled = true;
+    embedDownloadBtn.textContent = '⏳ Downloading...';
+    try {
+      await initModel((progress) => {
+        if (progress.status === 'downloading') {
+          const pct = Math.round(progress.progress * 100);
+          document.getElementById('embed-progress-section').style.display = 'block';
+          document.getElementById('embed-progress-fill').style.width = pct + '%';
+          document.getElementById('embed-progress-label').textContent = pct + '%';
+        } else if (progress.status === 'ready') {
+          document.getElementById('embed-progress-section').style.display = 'none';
+        }
+      });
+      showToast('Embedding model ready!', 'success');
+    } catch (err) {
+      showToast('Failed to load model: ' + err.message, 'error');
+    } finally {
+      embedDownloadBtn.disabled = false;
+      embedDownloadBtn.textContent = '⬇ Download';
+    }
+  };
+
+  // Embed model re-download (clear cache first)
+  document.getElementById('embed-redownload-btn').onclick = async () => {
+    await clearModelCache();
+    document.getElementById('embed-cache-status').textContent = '📦 Cache: cleared';
+    showToast('Cache cleared. Click Download to re-download.', 'info');
+  };
+
+  // QA model download
+  const qaDownloadBtn = document.getElementById('qa-download-btn');
+  qaDownloadBtn.onclick = async () => {
+    qaDownloadBtn.disabled = true;
+    qaDownloadBtn.textContent = '⏳ Loading...';
+    try {
+      await initQAEngine((progress) => {
+        if (progress.status === 'downloading') {
+          const pct = Math.round(progress.progress * 100);
+          document.getElementById('qa-progress-section').style.display = 'block';
+          document.getElementById('qa-progress-fill').style.width = pct + '%';
+          document.getElementById('qa-progress-label').textContent = pct + '%';
+        } else if (progress.status === 'ready') {
+          document.getElementById('qa-progress-section').style.display = 'none';
+        }
+      });
+      showToast('QA model ready!', 'success');
+    } catch (err) {
+      showToast('Failed to load QA model: ' + err.message, 'error');
+    } finally {
+      qaDownloadBtn.disabled = false;
+      qaDownloadBtn.textContent = '⬇ Download';
+    }
+  };
+
+  // Clear cache
+  document.getElementById('clear-cache-btn').onclick = async () => {
+    const ok = await clearModelCache();
+    if (ok) {
+      showToast('Model cache cleared', 'success');
+      refreshCacheInfo();
+      document.getElementById('embed-cache-status').textContent = '📦 Cache: not cached';
+      document.getElementById('qa-cache-status').textContent = '📦 Cache: not cached';
+    } else {
+      showToast('Failed to clear cache', 'error');
+    }
+  };
+
+  // Language buttons
+  document.querySelectorAll('.settings-lang-btn').forEach(btn => {
+    btn.onclick = () => {
+      const lang = btn.dataset.lang;
+      setLocale(lang);
+      document.querySelectorAll('.settings-lang-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      showToast(`Language set to ${lang === 'zh-CN' ? '中文' : 'English'}`, 'success');
+    };
+  });
+  // Highlight current language
+  const currentLang = getLocale();
+  document.querySelectorAll('.settings-lang-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.lang === currentLang);
+  });
+
+  // ─── State subscriptions (one-time setup) ────────────────
+  state.subscribe('modelStatus', (status) => {
+    if (document.getElementById('settings-page').classList.contains('active')) {
+      updateEmbeddingCard(status);
+    }
+  });
+  state.subscribe('modelProgress', (progress) => {
+    const section = document.getElementById('embed-progress-section');
+    if (document.getElementById('settings-page').classList.contains('active')) {
+      section.style.display = progress < 100 ? 'block' : 'none';
+      document.getElementById('embed-progress-fill').style.width = progress + '%';
+      document.getElementById('embed-progress-label').textContent = progress + '%';
+    }
+  });
+  state.subscribe('qaModelStatus', (status) => {
+    if (document.getElementById('settings-page').classList.contains('active')) {
+      updateQACard(status);
+    }
+  });
+  state.subscribe('qaModelProgress', (progress) => {
+    const section = document.getElementById('qa-progress-section');
+    if (document.getElementById('settings-page').classList.contains('active')) {
+      section.style.display = progress < 100 ? 'block' : 'none';
+      document.getElementById('qa-progress-fill').style.width = progress + '%';
+      document.getElementById('qa-progress-label').textContent = progress + '%';
+    }
+  });
+}
+
+function updateEmbeddingCard(status) {
+  const info = getEmbeddingModelInfo();
+  const badge = document.getElementById('embed-status-badge');
+  badge.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+  badge.className = 'model-status-badge ' + status;
+  document.getElementById('embed-model-name').textContent = info.current.name;
+  document.getElementById('embed-model-dims').textContent = info.current.dims + '-dim';
+  document.getElementById('embed-model-size').textContent = info.current.size;
+}
+
+function updateQACard(status) {
+  if (!status) return;
+  const badge = document.getElementById('qa-status-badge');
+  badge.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+  badge.className = 'model-status-badge ' + status;
+}
+
+async function refreshCacheInfo() {
+  try {
+    const info = await getCacheInfo();
+    document.getElementById('cache-file-count').textContent = info.entries;
+    document.getElementById('cache-total-size').textContent = info.sizeFormatted;
+  } catch {
+    // Silent fallback
+  }
 }

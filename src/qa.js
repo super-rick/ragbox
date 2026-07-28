@@ -12,6 +12,7 @@
  */
 
 import { hybridSearch } from './search.js';
+import { state } from './state.js';
 
 let engine = null;
 let engineStatus = 'idle'; // idle | loading | ready | error
@@ -43,6 +44,8 @@ export async function initQAEngine(onProgress) {
 
   try {
     engineStatus = 'loading';
+    state.set('qaModelStatus', 'loading');
+    state.set('qaModelProgress', 0);
     onProgress?.({ status: 'loading', progress: 0 });
 
     const webllm = await import('https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.67/+esm');
@@ -50,6 +53,7 @@ export async function initQAEngine(onProgress) {
     const initProgressCallback = (report) => {
       if (report.status === 'progress') {
         const progress = report.progress || 0;
+        state.set('qaModelProgress', Math.round(progress * 100));
         onProgress?.({
           status: 'downloading',
           progress,
@@ -65,9 +69,12 @@ export async function initQAEngine(onProgress) {
     });
 
     engineStatus = 'ready';
+    state.set('qaModelStatus', 'ready');
+    state.set('qaModelProgress', 100);
     onProgress?.({ status: 'ready' });
   } catch (err) {
     engineStatus = 'error';
+    state.set('qaModelStatus', 'error');
     onProgress?.({ status: 'error', error: err.message });
     throw err;
   }
