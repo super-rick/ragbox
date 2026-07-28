@@ -187,6 +187,15 @@ function toggleQAMode() {
     searchInput.placeholder = 'Ask AI about your documents...';
     qaInput.focus();
 
+    // Ensure embedding model is loaded (needed for search behind QA)
+    if (!isModelReady()) {
+      initModel((progress) => {
+        if (progress.status === 'downloading') {
+          state.set('modelProgress', Math.round(progress.progress * 100));
+        }
+      }).catch(() => {});
+    }
+
     // Init QA engine if first time
     if (!qaEngineInitialized) {
       initQAEngine((progress) => {
