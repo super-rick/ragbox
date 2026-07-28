@@ -19,7 +19,15 @@ export function createElement(tag, attrs = {}, children = []) {
     } else if (key === 'dataset') {
       Object.assign(el.dataset, val);
     } else if (key.startsWith('on')) {
-      el.addEventListener(key.slice(2).toLowerCase(), val);
+      const eventName = key.slice(2).toLowerCase();
+      if (typeof val === 'function') {
+        el.addEventListener(eventName, val);
+      } else if (typeof val === 'object' && val !== null) {
+        // Support nested on: { click: fn, input: fn }
+        for (const [evt, handler] of Object.entries(val)) {
+          el.addEventListener(evt, handler);
+        }
+      }
     } else if (key === 'style' && typeof val === 'object') {
       Object.assign(el.style, val);
     } else {

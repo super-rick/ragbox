@@ -571,7 +571,12 @@
         label.textContent = 'Loading model into memory...';
       } else if (status === 'error') {
         overlay.classList.remove('active');
-        showToast?.('Model failed to download. Check your connection and refresh.', 'error');
+        // Show inline error — user can refresh
+        const errorEl = document.getElementById('model-download-error');
+        if (errorEl) {
+          errorEl.style.display = 'block';
+          errorEl.textContent = 'Failed to load model. Please refresh and try again.';
+        }
       } else {
         overlay.classList.remove('active');
       }

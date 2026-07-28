@@ -448,7 +448,7 @@ async function refreshKBList() {
 
 function updateSidebarActiveKB(kbId) {
   $$('.kb-item').forEach((el) => {
-    el.classList.toggle('active', el.dataset.kbid === kbId);
+    el.classList.toggle('active', el.dataset.kbid === kbId || el.dataset.kbId === kbId);
   });
 }
 
