@@ -776,18 +776,26 @@ async function renderSettingsPage() {
   const embedSelect = document.getElementById('embed-model-select');
   const availableEmbed = getAvailableEmbeddingModels();
 
-  // Populate dropdown
+  // Save current selection before recreating options
+  const prevEmbedVal = embedSelect.value;
   embedSelect.innerHTML = '';
   for (const m of availableEmbed) {
     const opt = document.createElement('option');
     opt.value = m.id;
     opt.textContent = `${m.name} (${m.dims}d, ${m.size}) — ${m.quality}`;
-    if (m.id === embedInfo.current.id) opt.selected = true;
+    // Restore previous selection, or default to current active model
+    if (prevEmbedVal ? m.id === prevEmbedVal : m.id === embedInfo.current.id) {
+      opt.selected = true;
+    }
     embedSelect.appendChild(opt);
   }
 
   // Update info
-  updateEmbeddingCard(embedInfo.status);
+  if (!prevEmbedVal || embedSelect.value === embedInfo.current.id) {
+    updateEmbeddingCard(embedInfo.status);
+  } else {
+    updateEmbeddingCardFromId(embedSelect.value);
+  }
 
   // ─── QA model info ──────────────────────────────────────
   const qaInfo = getQAModelInfo();
@@ -801,19 +809,26 @@ async function renderSettingsPage() {
     qaCard.style.display = 'block';
     webgpuNote.style.display = 'none';
 
-    // Populate dropdown
+    // Save current selection before recreating options
+    const prevQAVal = qaSelect.value;
     qaSelect.innerHTML = '';
     for (const m of availableQA) {
       const opt = document.createElement('option');
       opt.value = m.id;
       opt.textContent = `${m.name} (${m.size}) — ${m.quality}`;
-      if (m.id === qaInfo.current.id) opt.selected = true;
+      if (prevQAVal ? m.id === prevQAVal : m.id === qaInfo.current.id) {
+        opt.selected = true;
+      }
       qaSelect.appendChild(opt);
     }
 
     // Update info
-    updateQACard(qaInfo.status);
-    document.getElementById('qa-model-name').textContent = qaInfo.current.display || qaInfo.current.name;
+    if (!prevQAVal || qaSelect.value === qaInfo.current.id) {
+      updateQACard(qaInfo.status);
+      document.getElementById('qa-model-name').textContent = qaInfo.current.display || qaInfo.current.name;
+    } else {
+      updateQACardFromId(qaSelect.value);
+    }
   } else {
     qaCard.style.display = 'block';
     webgpuNote.style.display = 'flex';
