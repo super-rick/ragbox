@@ -2,3 +2,5 @@ worker/
 .env
 .DS_Store
 plan/
+node_modules/
+playwright-report/

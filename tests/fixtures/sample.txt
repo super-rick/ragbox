@@ -1,0 +1,33 @@
+# Sample Document for RAG Tools Testing
+
+This is a test document used to verify the ingestion and search pipeline.
+
+## Introduction
+
+RAG Tools is a browser-local knowledge base that lets you search your documents
+using semantic understanding rather than just keyword matching.
+
+## Key Features
+
+- 100% local processing — your data never leaves your browser
+- No server, no signup, no installation required
+- Supports PDF, TXT, and MD files
+- Uses all-MiniLM-L6-v2 for generating embeddings (23MB model)
+- IndexedDB for persistent storage
+
+## Technical Details
+
+The embedding model produces 384-dimensional vectors. All vectors are L2-normalized,
+so cosine similarity is equivalent to dot product. The search performs a full scan
+over all vectors in the selected knowledge base, which is fast enough for personal
+use (under 200ms for 100K vectors).
+
+## Test Expectations
+
+When this document is processed:
+- It should be chunked into segments of approximately 512 characters
+- Each chunk should be embedded as a Float32Array(384)
+- The chunks should be searchable via semantic search
+
+Searching for "vector embedding" should return chunks from the Technical Details section.
+Searching for "browser local" should return chunks from the Key Features section.

@@ -544,8 +544,17 @@
 
     state.subscribe('sidebarOpen', (open) => {
       document.getElementById('sidebar').classList.toggle('collapsed', !open);
-      document.getElementById('sidebar-overlay').classList.toggle('active', !open && window.innerWidth <= 768);
+      document.getElementById('sidebar-overlay').classList.toggle('active', open && window.innerWidth <= 768);
     });
+
+    // Sidebar auto-collapse on mobile
+    function handleResize() {
+      if (window.innerWidth <= 768 && !state.get('sidebarOpen')) return;
+      if (window.innerWidth <= 768) state.set('sidebarOpen', false);
+      if (window.innerWidth > 768 && !state.get('sidebarOpen')) state.set('sidebarOpen', true);
+    }
+    window.addEventListener('resize', handleResize);
+    handleResize();
 
     // ─── Theme Toggle ──────────────────────────────────────────
     import('./src/ui.js').then(({ setTheme }) => {
