@@ -16,6 +16,7 @@ import { state } from './state.js';
 
 let engine = null;
 let engineStatus = 'idle'; // idle | loading | ready | error
+let currentAbortController = null;
 
 const MODEL_ID = 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC';
 const MODEL_DISPLAY = 'Qwen2.5-0.5B-Instruct';
@@ -94,48 +95,80 @@ export async function* askQuestion(question, kbId) {
     throw new Error('QA engine not initialized');
   }
 
-  // 1. Search for relevant chunks
-  const results = await hybridSearch(question, kbId, { topK: MAX_CONTEXT_CHUNKS, blend: 0.6 });
+  // Create a new abort controller for this answer
+  currentAbortController = new AbortController();
+  const signal = currentAbortController.signal;
 
-  if (results.length === 0) {
-    yield 'I couldn\'t find any relevant information in your knowledge base to answer this question.';
-    return;
-  }
+  try {
+    // 1. Search for relevant chunks
+    const results = await hybridSearch(question, kbId, { topK: MAX_CONTEXT_CHUNKS, blend: 0.6 });
 
-  // 2. Build context from chunks
-  const contextParts = results.map((r, i) => {
-    const source = r.docName + (r.pageNumber ? ` (p.${r.pageNumber})` : '');
-    return `[Source ${i + 1}: ${source}]\n${r.text}`;
-  });
-
-  const context = contextParts.join('\n\n');
-
-  // 3. Build prompt
-  const messages = [
-    {
-      role: 'system',
-      content: 'You are a helpful assistant that answers questions based ONLY on the provided context. '
-        + 'If the context does not contain enough information to answer, say "The provided documents '
-        + 'don\'t contain enough information to answer this question." Be concise. Cite sources when possible.',
-    },
-    {
-      role: 'user',
-      content: `Context:\n${context}\n\nQuestion: ${question}`,
-    },
-  ];
-
-  // 4. Stream response
-  const chunks = await engine.chat.completions.create({
-    messages,
-    stream: true,
-  });
-
-  for await (const chunk of chunks) {
-    const content = chunk.choices?.[0]?.delta?.content;
-    if (content) {
-      yield content;
+    if (results.length === 0) {
+      yield 'I couldn\'t find any relevant information in your knowledge base to answer this question.';
+      return;
     }
+
+    // 2. Build context from chunks
+    const contextParts = results.map((r, i) => {
+      const source = r.docName + (r.pageNumber ? ` (p.${r.pageNumber})` : '');
+      return `[Source ${i + 1}: ${source}]\n${r.text}`;
+    });
+
+    const context = contextParts.join('\n\n');
+
+    // 3. Build prompt
+    const messages = [
+      {
+        role: 'system',
+        content: 'You are a helpful assistant that answers questions based ONLY on the provided context. '
+          + 'If the context does not contain enough information to answer, say "The provided documents '
+          + 'don\'t contain enough information to answer this question." Be concise. Cite sources when possible.',
+      },
+      {
+        role: 'user',
+        content: `Context:\n${context}\n\nQuestion: ${question}`,
+      },
+    ];
+
+    // 4. Check abort before streaming
+    if (signal.aborted) return;
+
+    // 5. Stream response
+    const chunks = await engine.chat.completions.create({
+      messages,
+      stream: true,
+    });
+
+    for await (const chunk of chunks) {
+      if (signal.aborted) {
+        yield '\n\n⏹️ Response stopped.';
+        return;
+      }
+      const content = chunk.choices?.[0]?.delta?.content;
+      if (content) {
+        yield content;
+      }
+    }
+  } finally {
+    currentAbortController = null;
   }
+}
+
+/**
+ * Abort the current answer generation.
+ */
+export function abortAnswer() {
+  if (currentAbortController) {
+    currentAbortController.abort();
+    currentAbortController = null;
+  }
+}
+
+/**
+ * Check if an answer is currently being generated.
+ */
+export function isAnswering() {
+  return currentAbortController !== null;
 }
 
 /**

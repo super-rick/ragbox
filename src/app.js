@@ -17,7 +17,7 @@ import { readFileAsArrayBuffer, readFileAsText, setupDragDrop, setupFileInput,
 import { initModel, embed, embedSingle, isModelReady, getModelInfo } from './embedder.js';
 import { hybridSearch, keywordSearch, highlightMatches } from './search.js';
 import { initLicense } from './license.js';
-import { initQAEngine, askQuestion, isWebGPUSupported, getEngineStatus } from './qa.js';
+import { initQAEngine, askQuestion, isWebGPUSupported, getEngineStatus, abortAnswer, isAnswering } from './qa.js';
 import {
   getEmbeddingModelInfo, getQAModelInfo,
   getAvailableEmbeddingModels, getAvailableQAModels,
@@ -126,6 +126,12 @@ function setupEventListeners() {
       e.preventDefault();
       handleQAQuestion();
     }
+  });
+  // Stop button
+  $('#qa-stop').addEventListener('click', () => {
+    abortAnswer();
+    $('#qa-stop').style.display = 'none';
+    $('#qa-send').style.display = 'inline-block';
   });
 
   state.subscribe('route', (route) => {
@@ -245,12 +251,16 @@ async function handleQAQuestion() {
   addQAMessage('user', question);
   input.value = '';
 
-  // Show loading indicator
+  // Show loading indicator with stop button
   const loadingMsg = addQAMessage('assistant', '', true);
   loadingMsg.classList.add('loading');
   const typingSpan = document.createElement('span');
   typingSpan.className = 'qa-typing';
   loadingMsg.appendChild(typingSpan);
+
+  // Show stop button, hide send button
+  $('#qa-send').style.display = 'none';
+  $('#qa-stop').style.display = 'inline-block';
 
   try {
     let fullResponse = '';
@@ -267,6 +277,10 @@ async function handleQAQuestion() {
     console.error('QA error:', err);
     loadingMsg.classList.remove('loading');
     typingSpan.textContent = '❌ Error: ' + (err.message || 'Failed to get answer');
+  } finally {
+    // Restore send button, hide stop button
+    $('#qa-stop').style.display = 'none';
+    $('#qa-send').style.display = 'inline-block';
   }
 }
 
