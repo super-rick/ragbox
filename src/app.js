@@ -785,6 +785,7 @@ async function renderSettingsPage() {
 
     // Update info
     updateQACard(qaInfo.status);
+    document.getElementById('qa-model-name').textContent = qaInfo.current.display || qaInfo.current.name;
   } else {
     qaCard.style.display = 'block';
     webgpuNote.style.display = 'flex';
@@ -801,7 +802,7 @@ async function renderSettingsPage() {
     document.getElementById('embed-cache-status').textContent = cached ? '📦 Cache: cached' : '📦 Cache: not cached';
   });
   if (qaInfo.webgpu) {
-    checkModelCache('Qwen2.5-0.5B').then(cached => {
+    checkModelCache('mlc-ai/Qwen2.5-0.5B').then(cached => {
       document.getElementById('qa-cache-status').textContent = cached ? '📦 Cache: cached' : '📦 Cache: not cached';
     });
   }

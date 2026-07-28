@@ -17,7 +17,8 @@ import { state } from './state.js';
 let engine = null;
 let engineStatus = 'idle'; // idle | loading | ready | error
 
-const MODEL_ID = 'Qwen2.5-0.5B-Instruct';
+const MODEL_ID = 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC';
+const MODEL_DISPLAY = 'Qwen2.5-0.5B-Instruct';
 const MAX_CONTEXT_CHUNKS = 5;
 
 /**

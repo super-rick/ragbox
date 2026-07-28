@@ -28,9 +28,8 @@ const AVAILABLE_EMBEDDING_MODELS = [
  * Requires WebGPU.
  */
 const AVAILABLE_QA_MODELS = [
-  { id: 'Qwen2.5-0.5B-Instruct',    name: 'Qwen2.5-0.5B',    size: '500 MB',  speed: '⚡ Fast',   quality: 'Basic' },
-  { id: 'Qwen2.5-1.5B-Instruct',   name: 'Qwen2.5-1.5B',   size: '1.5 GB',  speed: '🐢 Medium', quality: 'Better' },
-  { id: 'Phi-3-mini-4k-instruct',   name: 'Phi-3-mini',     size: '2.3 GB',  speed: '🐌 Slow',   quality: 'Best' },
+  { id: 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC',  display: 'Qwen2.5-0.5B-Instruct', name: 'Qwen2.5-0.5B',    size: '500 MB',  speed: '⚡ Fast',   quality: 'Basic' },
+  { id: 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC', display: 'Qwen2.5-1.5B-Instruct', name: 'Qwen2.5-1.5B',   size: '1.5 GB',  speed: '🐢 Medium', quality: 'Better' },
 ];
 
 // ─── Public API ────────────────────────────────────────────────────
