@@ -44,13 +44,29 @@ export async function keywordSearch(query, kbId, options = {}) {
 
 /**
  * Extract meaningful search terms from a query string.
+ * Supports both English (space-separated) and Chinese (bigram).
  */
 function extractTerms(query) {
-  return query
-    .toLowerCase()
-    .replace(/[^\w一-鿿\s]/g, ' ')
-    .split(/\s+/)
-    .filter((t) => t.length > 1);
+  const cleaned = query.toLowerCase().replace(/[^\w一-鿿\s]/g, ' ').trim();
+
+  // Space-separated words (English)
+  const words = cleaned.split(/\s+/).filter((t) => t.length > 1);
+
+  // Chinese bigram: extract every 2-character segment for non-space runs
+  const lines = cleaned.split(/\s+/);
+  for (const line of lines) {
+    if (/[一-鿿]/.test(line) && line.length > 2) {
+      for (let i = 0; i < line.length - 1; i++) {
+        const bigram = line.slice(i, i + 2);
+        // Only add if not already present as a word
+        if (bigram.length === 2 && !words.includes(bigram)) {
+          words.push(bigram);
+        }
+      }
+    }
+  }
+
+  return words;
 }
 
 /**
