@@ -16,6 +16,8 @@ import { readFileAsArrayBuffer, readFileAsText, setupDragDrop, setupFileInput,
          validateFile, stripMarkdown } from './file-handler.js';
 import { initModel, embed, embedSingle, isModelReady, getModelInfo } from './embedder.js';
 import { hybridSearch, keywordSearch, highlightMatches } from './search.js';
+import { isPro, requirePro, initLicense } from './license.js';
+import { initQAEngine, askQuestion, isWebGPUSupported, getEngineStatus } from './qa.js';
 
 // ─── Initialization ──────────────────────────────────────────────
 
@@ -101,9 +103,143 @@ function setupEventListeners() {
     }
   });
 
+  // ─── Q&A ────────────────────────────────────────────────────
+  const qaToggle = $('#qa-toggle');
+  const qaPanel = $('#qa-panel');
+  const qaInput = $('#qa-input');
+  const qaSend = $('#qa-send');
+
+  // Show QA toggle if WebGPU available (Pro check happens on click)
+  if (isWebGPUSupported()) {
+    qaToggle.style.display = 'inline-block';
+  }
+
+  qaToggle.addEventListener('click', () => toggleQAMode());
+  qaSend.addEventListener('click', () => handleQAQuestion());
+  qaInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleQAQuestion();
+    }
+  });
+
   state.subscribe('route', (route) => {
     // Route changes handled by hash router
   });
+}
+
+// ─── Q&A Mode ───────────────────────────────────────────────────
+
+let isQAMode = false;
+let qaEngineInitialized = false;
+
+function toggleQAMode() {
+  const kbId = state.get('currentKBId');
+  if (!kbId) {
+    showToast('Please select a knowledge base first.', 'warning');
+    return;
+  }
+
+  // Pro gate
+  if (!isPro()) {
+    showModal({
+      title: t('pro.title'),
+      content: 'RAG Q&A with local AI is a Pro feature. Upgrade for ¥29.9 one-time.',
+      actions: [
+        { label: 'Upgrade', variant: 'primary' },
+        { label: 'Cancel', variant: 'secondary' },
+      ],
+    });
+    return;
+  }
+
+  isQAMode = !isQAMode;
+  const qaPanel = $('#qa-panel');
+  const searchInput = $('#search-input');
+  const qaToggle = $('#qa-toggle');
+
+  if (isQAMode) {
+    // Switch to QA mode
+    qaPanel.style.display = 'flex';
+    qaToggle.textContent = '🔍 Search';
+    searchInput.placeholder = 'Ask AI about your documents...';
+    qaInput.focus();
+
+    // Init QA engine if first time
+    if (!qaEngineInitialized) {
+      initQAEngine((progress) => {
+        if (progress.status === 'downloading') {
+          addQAMessage('assistant', `⏳ Loading AI model (${Math.round(progress.progress * 100)}%)...`, true);
+        } else if (progress.status === 'ready') {
+          qaEngineInitialized = true;
+          addQAMessage('assistant', '✅ AI model ready! Ask me anything about your documents.');
+        } else if (progress.status === 'error') {
+          addQAMessage('assistant', '❌ Failed to load AI model. WebGPU may not be available.');
+        }
+      }).catch((err) => {
+        addQAMessage('assistant', '❌ Error: ' + err.message);
+      });
+    }
+  } else {
+    // Switch back to search mode
+    qaPanel.style.display = 'none';
+    qaToggle.textContent = '🤖 Ask AI';
+    searchInput.placeholder = 'Search your documents...';
+  }
+}
+
+async function handleQAQuestion() {
+  const input = $('#qa-input');
+  const question = input.value.trim();
+  if (!question) return;
+
+  const kbId = state.get('currentKBId');
+  if (!kbId) {
+    showToast('Please select a knowledge base first.', 'warning');
+    return;
+  }
+
+  // Show user question
+  addQAMessage('user', question);
+  input.value = '';
+
+  // Show loading indicator
+  const loadingMsg = addQAMessage('assistant', '', true);
+  loadingMsg.classList.add('loading');
+  const typingSpan = document.createElement('span');
+  typingSpan.className = 'qa-typing';
+  loadingMsg.appendChild(typingSpan);
+
+  try {
+    let fullResponse = '';
+    for await (const token of askQuestion(question, kbId)) {
+      fullResponse += token;
+      typingSpan.textContent = fullResponse;
+      // Auto-scroll
+      const messages = $('#qa-messages');
+      if (messages) messages.scrollTop = messages.scrollHeight;
+    }
+    loadingMsg.classList.remove('loading');
+    typingSpan.classList.remove('qa-typing');
+  } catch (err) {
+    console.error('QA error:', err);
+    loadingMsg.classList.remove('loading');
+    typingSpan.textContent = '❌ Error: ' + (err.message || 'Failed to get answer');
+  }
+}
+
+function addQAMessage(role, text, isLoading = false) {
+  const container = $('#qa-messages');
+  if (!container) return null;
+
+  const msg = createElement('div', {
+    className: `qa-message ${role}${isLoading ? ' loading' : ''}`,
+    style: { display: 'flex', flexDirection: 'column' },
+  });
+  msg.textContent = text;
+  container.appendChild(msg);
+  container.scrollTop = container.scrollHeight;
+  return msg;
 }
 
 // ─── File Handling / Ingestion Pipeline ──────────────────────────
