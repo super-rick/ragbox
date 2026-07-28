@@ -101,22 +101,33 @@ export async function* askQuestion(question, kbId) {
 
   try {
     // 1. Search for relevant chunks
-    const results = await hybridSearch(question, kbId, { topK: MAX_CONTEXT_CHUNKS, blend: 0.6 });
+    const results = await hybridSearch(question, kbId, { topK: MAX_CONTEXT_CHUNKS * 3, blend: 0.6 });
 
     if (results.length === 0) {
       yield 'I couldn\'t find any relevant information in your knowledge base to answer this question.';
       return;
     }
 
-    // 2. Build context from chunks
-    const contextParts = results.map((r, i) => {
+    // 2. Deduplicate: group by docId, take the best chunk per document
+    const seen = new Set();
+    const deduped = [];
+    for (const r of results) {
+      if (!seen.has(r.docId)) {
+        seen.add(r.docId);
+        deduped.push(r);
+        if (deduped.length >= MAX_CONTEXT_CHUNKS) break;
+      }
+    }
+
+    // 3. Build context from deduplicated chunks
+    const contextParts = deduped.map((r, i) => {
       const source = r.docName + (r.pageNumber ? ` (p.${r.pageNumber})` : '');
       return `[Source ${i + 1}: ${source}]\n${r.text}`;
     });
 
     const context = contextParts.join('\n\n');
 
-    // 3. Build prompt
+    // 4. Build prompt
     const messages = [
       {
         role: 'system',
@@ -130,10 +141,10 @@ export async function* askQuestion(question, kbId) {
       },
     ];
 
-    // 4. Check abort before streaming
+    // 5. Check abort before streaming
     if (signal.aborted) return;
 
-    // 5. Stream response
+    // 6. Stream response
     const chunks = await engine.chat.completions.create({
       messages,
       stream: true,
