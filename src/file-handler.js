@@ -2,11 +2,9 @@
  * File drag/drop, input selection, validation, and reading.
  */
 
-const SUPPORTED_TYPES_V1 = ['.pdf', '.txt', '.md'];
-const SUPPORTED_TYPES_V2 = ['.pdf', '.txt', '.md', '.docx', '.epub'];
+const SUPPORTED_TYPES = ['.pdf', '.txt', '.md', '.docx', '.epub'];
 
-const FREE_SIZE_LIMIT = 10 * 1024 * 1024;  // 10 MB
-const PRO_SIZE_LIMIT = 100 * 1024 * 1024;   // 100 MB
+const MAX_FILE_SIZE = 100 * 1024 * 1024;   // 100 MB
 
 const TEXT_TYPES = ['.txt', '.md'];
 
@@ -15,22 +13,20 @@ function getExtension(filename) {
   return i > 0 ? filename.slice(i).toLowerCase() : '';
 }
 
-export function validateFile(file, isPro = false) {
+export function validateFile(file) {
   const ext = getExtension(file.name);
-  const supported = isPro ? SUPPORTED_TYPES_V2 : SUPPORTED_TYPES_V1;
-  const sizeLimit = isPro ? PRO_SIZE_LIMIT : FREE_SIZE_LIMIT;
 
-  if (!supported.includes(ext)) {
+  if (!SUPPORTED_TYPES.includes(ext)) {
     return {
       valid: false,
-      error: `Unsupported file type "${ext}". Supported: ${supported.join(', ')}`,
+      error: `Unsupported file type "${ext}". Supported: ${SUPPORTED_TYPES.join(', ')}`,
     };
   }
 
-  if (file.size > sizeLimit) {
+  if (file.size > MAX_FILE_SIZE) {
     return {
       valid: false,
-      error: `File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max: ${sizeLimit / 1024 / 1024}MB`,
+      error: `File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max: ${MAX_FILE_SIZE / 1024 / 1024}MB`,
     };
   }
 

@@ -16,7 +16,7 @@ import { readFileAsArrayBuffer, readFileAsText, setupDragDrop, setupFileInput,
          validateFile, stripMarkdown } from './file-handler.js';
 import { initModel, embed, embedSingle, isModelReady, getModelInfo } from './embedder.js';
 import { hybridSearch, keywordSearch, highlightMatches } from './search.js';
-import { isPro, requirePro, initLicense } from './license.js';
+import { initLicense } from './license.js';
 import { initQAEngine, askQuestion, isWebGPUSupported, getEngineStatus } from './qa.js';
 
 // ─── Initialization ──────────────────────────────────────────────
@@ -140,19 +140,6 @@ function toggleQAMode() {
     return;
   }
 
-  // Pro gate
-  if (!isPro()) {
-    showModal({
-      title: t('pro.title'),
-      content: 'RAG Q&A with local AI is a Pro feature. Upgrade for ¥29.9 one-time.',
-      actions: [
-        { label: 'Upgrade', variant: 'primary' },
-        { label: 'Cancel', variant: 'secondary' },
-      ],
-    });
-    return;
-  }
-
   isQAMode = !isQAMode;
   const qaPanel = $('#qa-panel');
   const searchInput = $('#search-input');
@@ -255,10 +242,9 @@ async function handleFiles(files) {
   }
 
   const validFiles = [];
-  const isPro = state.get('isPro');
 
   for (const file of files) {
-    const result = validateFile(file, isPro);
+    const result = validateFile(file);
     if (result.valid) {
       validFiles.push(file);
     } else {
@@ -309,7 +295,6 @@ async function processIngestionQueue(kbId) {
 
 async function processSingleFile(file, kbId, progressContainer) {
   const ext = file.name.split('.').pop().toLowerCase();
-  const isPro = state.get('isPro');
 
   // Create progress item
   const item = createElement('div', { className: 'progress-item' });
@@ -335,7 +320,7 @@ async function processSingleFile(file, kbId, progressContainer) {
       text = await readFileAsText(file);
     } else if (ext === 'md') {
       text = stripMarkdown(await readFileAsText(file));
-    } else if ((ext === 'docx' || ext === 'epub') && isPro) {
+    } else if (ext === 'docx' || ext === 'epub') {
       text = await extractAdvancedFormat(file, ext);
     }
 
@@ -394,7 +379,7 @@ async function processSingleFile(file, kbId, progressContainer) {
 }
 
 async function extractAdvancedFormat(file, ext) {
-  // Placeholder for DOCX/EPUB (V2 Pro feature)
+  // Placeholder for DOCX/EPUB
   const arrayBuf = await readFileAsArrayBuffer(file);
 
   if (ext === 'docx') {

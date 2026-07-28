@@ -85,7 +85,7 @@ test.describe('Initial State', () => {
     // Drop zone
     await expect(page.locator('#drop-zone')).toBeVisible();
     await expect(page.locator('#drop-zone-text')).toHaveText('Drop documents here, or click to select');
-    await expect(page.locator('#drop-zone-hint')).toHaveText('Supports PDF, TXT, MD');
+    await expect(page.locator('#drop-zone-hint')).toHaveText('Supports PDF, TXT, MD, DOCX, EPUB');
 
     // Results area is empty
     await expect(page.locator('#results-container')).toBeEmpty();
@@ -327,7 +327,7 @@ test.describe('Document Ingestion', () => {
     const result = await page.evaluate(async () => {
       const mod = await import('./src/file-handler.js');
       const fakeFile = new File(['fake'], 'virus.exe', { type: 'application/x-msdownload' });
-      return mod.validateFile(fakeFile, false);
+      return mod.validateFile(fakeFile);
     });
 
     expect(result.valid).toBe(false);

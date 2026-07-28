@@ -28,8 +28,7 @@ const translations = {
 
     // Drop zone
     'dropzone.text': 'Drop documents here, or click to select',
-    'dropzone.hint': 'Supports PDF, TXT, MD',
-    'dropzone.pro.error': 'This feature requires Pro',
+    'dropzone.hint': 'Supports PDF, TXT, MD, DOCX, EPUB',
 
     // Ingestion
     'ingestion.extracting': 'Extracting text',
@@ -63,9 +62,8 @@ const translations = {
     'stats.storage': '{size}',
 
     // Errors
-    'error.file_size': 'File too large. Max {size} for free tier.',
+    'error.file_size': 'File too large.',
     'error.file_type': 'Unsupported file type. Supported: {types}',
-    'error.pro_only': 'This feature is only available in Pro.',
     'error.generic': 'Something went wrong. Please try again.',
     'error.offline': 'You appear to be offline. Some features may not work.',
 
@@ -104,8 +102,7 @@ const translations = {
 
     // Drop zone
     'dropzone.text': '拖入文档，或点击选择',
-    'dropzone.hint': '支持 PDF、TXT、MD',
-    'dropzone.pro.error': '此功能需要 Pro',
+    'dropzone.hint': '支持 PDF、TXT、MD、DOCX、EPUB',
 
     // Ingestion
     'ingestion.extracting': '提取文本中',
@@ -139,9 +136,8 @@ const translations = {
     'stats.storage': '{size}',
 
     // Errors
-    'error.file_size': '文件过大。免费版限制 {size}。',
+    'error.file_size': '文件过大。',
     'error.file_type': '不支持的文件类型。支持：{types}',
-    'error.pro_only': '此功能仅 Pro 版本可用。',
     'error.generic': '出错了，请重试。',
     'error.offline': '您似乎离线了，部分功能可能不可用。',
 
