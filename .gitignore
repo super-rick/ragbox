@@ -1,0 +1,4 @@
+worker/
+.env
+.DS_Store
+plan/

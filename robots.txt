@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://rag.always.tools/sitemap.xml
