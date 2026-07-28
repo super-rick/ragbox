@@ -532,6 +532,19 @@ async function performSearch(query) {
   }
 }
 
+/**
+ * Strip markdown table syntax from text for cleaner display.
+ * Removes pipe separators, dashed separator lines, and trims whitespace.
+ */
+function cleanTableText(text) {
+  return text
+    .split('\n')
+    .filter(line => !/^\|[- :|]+\|$/.test(line.trim()))  // remove |---:|---:|---| separator rows
+    .map(line => line.replace(/^\||\|$/g, '').trim())       // remove leading/trailing pipes
+    .join('\n')
+    .trim();
+}
+
 function renderSearchResults(results, query) {
   const container = $('#results-container');
   container.innerHTML = '';
@@ -581,7 +594,8 @@ function renderSearchResults(results, query) {
 
     // Text with highlights
     const textEl = createElement('div', { className: 'result-text' });
-    const parts = highlightMatches(result.text, query);
+    const cleanedText = cleanTableText(result.text);
+    const parts = highlightMatches(cleanedText, query);
     for (const part of parts) {
       if (part.highlight) {
         textEl.append(createElement('mark', {}, [sanitizeHTML(part.text)]));
@@ -593,7 +607,7 @@ function renderSearchResults(results, query) {
 
     // Expand context button
     const expandBtn = createElement('button', { className: 'result-expand', dataset: { expanded: 'false' } }, [t('result.expand')]);
-    const contextDiv = createElement('div', { className: 'result-context' }, [result.text]);
+    const contextDiv = createElement('div', { className: 'result-context' }, [cleanTableText(result.text)]);
     expandBtn.addEventListener('click', () => {
       const isOpen = contextDiv.classList.toggle('open');
       expandBtn.textContent = isOpen ? t('result.collapse') : t('result.expand');
