@@ -186,6 +186,32 @@ async function handleQAQuestion() {
     return;
   }
 
+  // Check QA engine status
+  const status = getEngineStatus();
+  if (status === 'loading') {
+    showToast('AI model is still loading, please wait...', 'warning');
+    return;
+  }
+  if (status === 'idle' || status === 'error') {
+    // Try to init the engine
+    showToast('Initializing AI model...', 'info');
+    try {
+      await initQAEngine((progress) => {
+        if (progress.status === 'downloading') {
+          addQAMessage('assistant', `⏳ Loading AI model (${Math.round(progress.progress * 100)}%)...`, true);
+        } else if (progress.status === 'ready') {
+          qaEngineInitialized = true;
+          addQAMessage('assistant', '✅ AI model ready! Ask me anything about your documents.');
+        } else if (progress.status === 'error') {
+          addQAMessage('assistant', '❌ Failed to load AI model. WebGPU may not be available.');
+        }
+      });
+    } catch (err) {
+      showToast('Failed to initialize AI model: ' + err.message, 'error');
+      return;
+    }
+  }
+
   // Show user question
   addQAMessage('user', question);
   input.value = '';
