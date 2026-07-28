@@ -473,10 +473,13 @@ async function handleDeleteDocument(docId, kbId) {
   });
 }
 
+let _refreshDocListVersion = 0;
 async function refreshDocList() {
   const kbId = state.get('currentKBId');
   const list = $('#doc-list');
   const empty = $('#doc-empty');
+
+  const version = ++_refreshDocListVersion;
 
   list.innerHTML = '';
 
@@ -487,6 +490,9 @@ async function refreshDocList() {
   }
 
   const docs = await listDocuments(kbId);
+  // Discard stale results if refreshDocList was called again while loading
+  if (version !== _refreshDocListVersion) return;
+
   state.set('documents', docs);
 
   if (docs.length === 0) {
