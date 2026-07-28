@@ -18,8 +18,20 @@ async function loadTransformers() {
 /**
  * Initialize the embedding model.
  * Shows download progress via state updates.
+ * @param {object} [opts] - Options
+ * @param {function} [opts.onProgress] - Progress callback
+ * @param {string} [opts.modelId] - Override model ID (switches model)
  */
-export async function initModel(onProgress) {
+export async function initModel(opts = {}) {
+  const onProgress = typeof opts === 'function' ? opts : opts.onProgress;
+  const newModelId = opts.modelId || opts;
+
+  // If switching to a different model, unload current first
+  if (newModelId && typeof newModelId === 'string' && newModelId !== modelName) {
+    unloadModel();
+    modelName = newModelId;
+  }
+
   if (extractor) return;
 
   try {
@@ -111,12 +123,29 @@ export function isModelReady() {
   return extractor !== null;
 }
 
+/**
+ * Unload the current embedding model (clears extractor, resets status).
+ */
+export function unloadModel() {
+  extractor = null;
+  state.set('modelStatus', 'idle');
+  state.set('modelProgress', 0);
+}
+
+/**
+ * Get current model name (the actual model ID being used).
+ */
+export function getModelName() {
+  return modelName;
+}
+
 export function getModelInfo() {
+  const dims = modelName.includes('mpnet') ? 768 : 384;
   return {
     name: modelName,
-    size: '23MB',
+    size: modelName.includes('mpnet') ? '420 MB' : modelName.includes('L12') ? '120 MB' : '23 MB',
     status: extractor ? 'ready' : state.get('modelStatus') || 'idle',
-    dimensions: 384,
+    dimensions: dims,
   };
 }
 

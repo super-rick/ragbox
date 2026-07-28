@@ -824,16 +824,17 @@ async function renderSettingsPage() {
 
   // ─── Cache info ─────────────────────────────────────────
   refreshCacheInfo();
-
-  // ─── Cache status (async) ───────────────────────────────
-  checkModelCache('huggingface.co/Xenova/all-MiniLM-L6-v2').then(cached => {
-    document.getElementById('embed-cache-status').textContent = cached ? '📦 Cache: cached' : '📦 Cache: not cached';
-  });
+  updateEmbedCacheStatus(embedSelect.value);
   if (qaInfo.webgpu) {
     checkModelCache('mlc-ai/Qwen2.5-0.5B').then(cached => {
       document.getElementById('qa-cache-status').textContent = cached ? '📦 Cache: cached' : '📦 Cache: not cached';
     });
   }
+
+  // ─── Model selector change → update cache status ─────
+  embedSelect.onchange = () => {
+    updateEmbedCacheStatus(embedSelect.value);
+  };
 
   // ─── Button event bindings (one-time) ───────────────────
 
@@ -848,17 +849,28 @@ async function renderSettingsPage() {
     embedDownloadBtn.disabled = true;
     embedDownloadBtn.textContent = '⏳ Downloading...';
     try {
-      await initModel((progress) => {
-        if (progress.status === 'downloading') {
-          const pct = Math.round(progress.progress * 100);
-          document.getElementById('embed-progress-section').style.display = 'block';
-          document.getElementById('embed-progress-fill').style.width = pct + '%';
-          document.getElementById('embed-progress-label').textContent = pct + '%';
-        } else if (progress.status === 'ready') {
-          document.getElementById('embed-progress-section').style.display = 'none';
-        }
+      // Show progress section immediately
+      document.getElementById('embed-progress-section').style.display = 'block';
+      document.getElementById('embed-progress-fill').style.width = '0%';
+      document.getElementById('embed-progress-label').textContent = '0%';
+
+      await initModel({
+        modelId: selected,
+        onProgress: (progress) => {
+          if (progress.status === 'downloading') {
+            const pct = Math.round(progress.progress * 100);
+            document.getElementById('embed-progress-fill').style.width = pct + '%';
+            document.getElementById('embed-progress-label').textContent = pct + '%';
+          } else if (progress.status === 'ready') {
+            document.getElementById('embed-progress-section').style.display = 'none';
+          }
+        },
       });
       showToast('Embedding model ready!', 'success');
+      // Refresh cache status and card info after download
+      updateEmbedCacheStatus(selected);
+      updateEmbeddingCard('ready');
+      refreshCacheInfo();
     } catch (err) {
       showToast('Failed to load model: ' + err.message, 'error');
     } finally {
@@ -982,4 +994,11 @@ async function refreshCacheInfo() {
   } catch {
     // Silent fallback
   }
+}
+
+function updateEmbedCacheStatus(modelId) {
+  const pattern = modelId.includes('/') ? modelId.split('/')[1] : modelId;
+  checkModelCache(pattern).then(cached => {
+    document.getElementById('embed-cache-status').textContent = cached ? '📦 Cache: cached' : '📦 Cache: not cached';
+  });
 }
