@@ -20,20 +20,27 @@ const CLAUSE_SEPARATORS = ['；', '，', ';', ',', '：', ':', '）', '）', ')'
 /**
  * Chunk text into overlapping segments.
  * @param {string} text - Raw text to split
- * @param {object} options - { chunkSize, overlap }
- * @returns {Array<{text: string, metadata: {charStart: number, charEnd: number}}>}
+ * @param {object} options - { chunkSize, overlap, pageNumber }
+ * @returns {Array<{text: string, metadata: {charStart: number, charEnd: number, pageNumber: number|null}}>}
  */
 export function chunkText(text, options = {}) {
   const chunkSize = options.chunkSize || DEFAULT_CHUNK_SIZE;
   const overlap = options.overlap !== undefined ? options.overlap : Math.round(chunkSize * 0.1);
+  const pageNumber = options.pageNumber ?? null;
   const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
   const rawChunks = splitRecursive(normalized, chunkSize, 0);
-  return mergeWithOverlap(rawChunks, chunkSize, overlap);
+  const merged = mergeWithOverlap(rawChunks, chunkSize, overlap);
+  for (const c of merged) {
+    c.metadata.pageNumber = pageNumber;
+  }
+  return merged;
 }
 
 /**
  * Recursively split text using the best available separator.
+ * Positions are tracked by each part's real offset — never text.indexOf(part),
+ * which returns the FIRST occurrence and corrupts offsets for repeated substrings.
  */
 function splitRecursive(text, chunkSize, offset) {
   const results = [];
@@ -47,8 +54,7 @@ function splitRecursive(text, chunkSize, offset) {
   const paraSplits = splitBySeparators(text, ['\n\n', '\n\r\n', '\r\n\r\n']);
   if (paraSplits.length > 1) {
     for (const part of paraSplits) {
-      if (!part) continue;
-      results.push(...splitRecursive(part, chunkSize, offset + text.indexOf(part)));
+      results.push(...splitRecursive(part.text, chunkSize, offset + part.start));
     }
     return results;
   }
@@ -57,8 +63,7 @@ function splitRecursive(text, chunkSize, offset) {
   const sentSplits = splitBySeparators(text, SENTENCE_SEPARATORS);
   if (sentSplits.length > 1) {
     for (const part of sentSplits) {
-      if (!part) continue;
-      results.push(...splitRecursive(part, chunkSize, offset + text.indexOf(part)));
+      results.push(...splitRecursive(part.text, chunkSize, offset + part.start));
     }
     return results;
   }
@@ -67,8 +72,7 @@ function splitRecursive(text, chunkSize, offset) {
   const clauseSplits = splitBySeparators(text, CLAUSE_SEPARATORS);
   if (clauseSplits.length > 1) {
     for (const part of clauseSplits) {
-      if (!part) continue;
-      results.push(...splitRecursive(part, chunkSize, offset + text.indexOf(part)));
+      results.push(...splitRecursive(part.text, chunkSize, offset + part.start));
     }
     return results;
   }
@@ -77,8 +81,7 @@ function splitRecursive(text, chunkSize, offset) {
   const wordSplits = splitBySeparators(text, [' ']);
   if (wordSplits.length > 1) {
     for (const part of wordSplits) {
-      if (!part) continue;
-      results.push(...splitRecursive(part, chunkSize, offset + text.indexOf(part)));
+      results.push(...splitRecursive(part.text, chunkSize, offset + part.start));
     }
     return results;
   }
@@ -96,29 +99,38 @@ function splitRecursive(text, chunkSize, offset) {
 
 /**
  * Split text by an ordered list of separators, preserving separator in output for context.
- * Uses the FIRST separator found, preferring earlier ones in the list.
+ * Returns parts with their real position (start index in `text`, after trimming) so
+ * callers can compute accurate charStart/charEnd.
+ * @returns {Array<{text: string, start: number}>}
  */
 function splitBySeparators(text, separators) {
-  const pivot = findFirstSeparator(text, separators);
-  if (pivot === -1) return [text];
-
   const results = [];
   let remaining = text;
+  let remainingStart = 0;
 
   while (remaining.length > 0) {
     const idx = findFirstSeparator(remaining, separators);
     if (idx === -1) {
-      results.push(remaining.trim());
+      const trimmed = remaining.trim();
+      if (trimmed) {
+        const lead = remaining.length - remaining.trimStart().length;
+        results.push({ text: trimmed, start: remainingStart + lead });
+      }
       break;
     }
 
     // Include the separator in the segment for context
-    const segment = remaining.slice(0, idx + 1).trim();
-    if (segment) results.push(segment);
+    const segment = remaining.slice(0, idx + 1);
+    const trimmed = segment.trim();
+    if (trimmed) {
+      const lead = segment.length - segment.trimStart().length;
+      results.push({ text: trimmed, start: remainingStart + lead });
+    }
     remaining = remaining.slice(idx + 1);
+    remainingStart += idx + 1;
   }
 
-  return results.filter(Boolean);
+  return results;
 }
 
 /**
@@ -145,33 +157,37 @@ function mergeWithOverlap(chunks, chunkSize, overlap) {
   const result = [];
   let buffer = '';
   let bufferStart = 0;
+  let bufferEnd = 0; // true end position (in the original text), from chunk metadata
 
   for (const chunk of chunks) {
     if (!buffer) {
       buffer = chunk.text;
       bufferStart = chunk.metadata.charStart;
+      bufferEnd = chunk.metadata.charEnd;
       continue;
     }
 
     const combined = buffer + ' ' + chunk.text;
     if (combined.length <= chunkSize) {
       buffer = combined;
+      bufferEnd = chunk.metadata.charEnd;
       continue;
     }
 
     // Save current buffer as a chunk
-    result.push({ text: buffer, metadata: { charStart: bufferStart, charEnd: bufferStart + buffer.length } });
+    result.push({ text: buffer, metadata: { charStart: bufferStart, charEnd: bufferEnd } });
 
     // Start new buffer with overlap from end of previous buffer
     const overlapStart = Math.max(0, buffer.length - overlap);
     const overlapText = buffer.slice(overlapStart);
     buffer = overlapText + chunk.text;
     bufferStart = chunk.metadata.charStart - overlapText.length;
+    bufferEnd = chunk.metadata.charEnd;
   }
 
   // Flush remaining buffer
   if (buffer) {
-    result.push({ text: buffer, metadata: { charStart: bufferStart, charEnd: bufferStart + buffer.length } });
+    result.push({ text: buffer, metadata: { charStart: bufferStart, charEnd: bufferEnd } });
   }
 
   return result;

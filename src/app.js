@@ -521,6 +521,7 @@ async function processSingleFile(file, kbId, progressContainer) {
     let text = '';
     let pageCount = 0;
     let pageTexts = null;
+    let pdfPages = null;
 
     if (ext === 'pdf') {
       const arrayBuf = await readFileAsArrayBuffer(file);
@@ -531,7 +532,8 @@ async function processSingleFile(file, kbId, progressContainer) {
       });
       text = result.fullText;
       pageCount = result.pageCount;
-      pageTexts = result.pages ? result.pages.map((p) => p.text) : null;
+      pdfPages = result.pages || null;
+      pageTexts = pdfPages ? pdfPages.map((p) => p.text) : null;
     } else if (ext === 'txt') {
       text = await readFileAsText(file);
     } else if (ext === 'md') {
@@ -547,7 +549,17 @@ async function processSingleFile(file, kbId, progressContainer) {
 
     // ─── 2. Chunk text ──────────────────────────────────────
     statusText.textContent = t('ingestion.chunking');
-    const chunks = chunkText(text);
+    // PDFs are chunked per page so chunks carry an accurate pageNumber and
+    // never span page boundaries.
+    let chunks;
+    if (ext === 'pdf' && pdfPages && pdfPages.length > 0) {
+      chunks = [];
+      for (const page of pdfPages) {
+        chunks.push(...chunkText(page.text, { pageNumber: page.pageNumber }));
+      }
+    } else {
+      chunks = chunkText(text);
+    }
 
     // ─── 3. Generate embeddings (if model ready) ───────────
     let embeddings = null;
