@@ -284,7 +284,7 @@ export function renderErrorState(container, { message, onRetry } = {}) {
     },
   });
   wrapper.append(createElement('div', { style: { fontSize: '3rem' } }, ['⚠️']));
-  wrapper.append(createElement('p', { style: { color: '#ef4444', margin: 0 } }, [message || 'Something went wrong.']));
+  wrapper.append(createElement('p', { style: { color: '#ef4444', margin: 0 } }, [message || t('error.generic')]));
   if (onRetry) {
     wrapper.append(createElement('button', {
       className: 'btn',

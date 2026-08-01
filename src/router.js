@@ -4,29 +4,34 @@
  */
 
 import { state } from './state.js';
+import { t } from './i18n.js';
 
-const routes = {
-  'home':     { title: 'RAG Tools — Browser Local Knowledge Base' },
-  'search':   { title: 'Search — RAG Tools' },
-  'docs':     { title: 'Documents — RAG Tools' },
-  'settings': { title: 'Settings — RAG Tools' },
+const ROUTE_KEYS = {
+  'home': 'route.home',
+  'search': 'route.search',
+  'docs': 'route.docs',
+  'settings': 'route.settings',
 };
 
 function getHashRoute() {
   const hash = window.location.hash.replace('#', '') || 'home';
-  return routes[hash] ? hash : 'home';
+  return ROUTE_KEYS[hash] ? hash : 'home';
 }
 
 function navigate(route) {
-  if (!routes[route]) route = 'home';
+  if (!ROUTE_KEYS[route]) route = 'home';
   window.location.hash = '#' + route;
 }
 
 function onHashChange() {
   const route = getHashRoute();
-  const meta = routes[route];
-  document.title = meta.title;
+  document.title = t(ROUTE_KEYS[route] || 'route.home');
   state.set('route', route);
+}
+
+/** Re-apply the localized document title for a route (used after language switch). */
+export function updateTitle(route) {
+  document.title = t(ROUTE_KEYS[route] || 'route.home');
 }
 
 export function initRouter() {
@@ -36,7 +41,7 @@ export function initRouter() {
 }
 
 export function getRouteMeta(route) {
-  return routes[route] || routes.home;
+  return { title: t(ROUTE_KEYS[route] || 'route.home') };
 }
 
 export { navigate };

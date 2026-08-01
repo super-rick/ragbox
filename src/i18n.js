@@ -91,6 +91,90 @@ const translations = {
     'pro.activate': 'Activate',
     'pro.activated': 'Pro activated!',
     'pro.invalid': 'Invalid license key',
+
+    // QA
+    'qa.ask': 'Ask',
+    'qa.stop': 'Stop',
+    'qa.search_mode': '🔍 Search',
+    'qa.loading_model': 'Loading AI model ({pct}%)...',
+    'qa.model_ready': '✅ AI model ready! Ask me anything.',
+    'qa.model_failed': 'Failed to load AI model. WebGPU may not be available.',
+    'qa.error': 'Error: {msg}',
+    'qa.loading_wait': 'AI model is still loading, please wait...',
+    'qa.init': 'Initializing AI model...',
+    'qa.init_failed': 'Failed to initialize AI model: {msg}',
+    'qa.no_answer': 'Failed to get answer',
+
+    // KB / Doc management
+    'kb.required': 'Please create or select a knowledge base first.',
+
+    // Ingestion status
+    'ingestion.too_little': 'Too little text extracted',
+    'ingestion.text_only': 'Model loading, storing text only...',
+    'ingestion.chunks_done': '{count} chunks',
+
+    // Common actions
+    'common.delete': 'Delete',
+    'common.cancel': 'Cancel',
+
+    // KB / Doc management
+    'kb.create_failed': 'Failed to create knowledge base',
+    'kb.deleted': 'Knowledge base deleted',
+    'kb.delete_title': 'Delete Knowledge Base',
+    'doc.deleted': 'Document deleted',
+    'doc.delete_title': 'Delete Document',
+
+    // Search
+    'search.no_results_title': 'No results',
+    'search.searching': 'Searching...',
+
+    // Settings
+    'settings.title': '⚙️ Settings',
+    'settings.tab_models': '🧠 Models',
+    'settings.tab_language': '🌐 Language',
+    'settings.embedding_model': 'Embedding Model',
+    'settings.qa_model': 'QA Model (RAG Q&A)',
+    'settings.idle': 'Idle',
+    'settings.cache_checking': '📦 Cache: checking...',
+    'settings.cache_cached': '📦 Cache: cached',
+    'settings.cache_not_cached': '📦 Cache: not cached',
+    'settings.cache_cleared': '📦 Cache: cleared',
+    'settings.download': '⬇ Download',
+    'settings.redownload': '🔄 Re-download',
+    'settings.downloading': '⏳ Downloading...',
+    'settings.loading': '⏳ Loading...',
+    'settings.webgpu_unavailable': '⚠ WebGPU not available',
+    'settings.model_cache': '🗄️ Model Cache',
+    'settings.cached_files': 'Cached files:',
+    'settings.total_size': 'Total size:',
+    'settings.clear_cache': '🗑 Clear model cache',
+    'settings.cache_warning': 'Clearing the cache will re-download models on next use.',
+    'settings.embedding_ready': 'Embedding model ready!',
+    'settings.embedding_failed': 'Failed to load model: {msg}',
+    'settings.qa_ready': 'QA model ready!',
+    'settings.qa_failed': 'Failed to load QA model: {msg}',
+    'settings.switching': 'Switching to {model}. Re-index documents after download.',
+    'settings.cache_cleared_toast': 'Cache cleared. Click Download to re-download.',
+    'settings.cache_clear_success': 'Model cache cleared',
+    'settings.cache_clear_failed': 'Failed to clear cache',
+    'settings.na': 'N/A',
+    'settings.language': 'Language / 语言',
+    'settings.status_ready': 'Ready',
+    'settings.status_error': 'Error',
+    'settings.status_downloading': 'Downloading',
+    'settings.status_loading': 'Loading',
+    'settings.language_set': 'Language set to {name}',
+
+    // Model download overlay
+    'overlay.title': 'Loading AI Model',
+    'overlay.desc': 'Downloading embedding model (~23MB).\nFirst-time setup, one-time only. Cached for offline use.',
+    'overlay.dismiss': 'Continue browsing',
+
+    // Router titles
+    'route.home': 'RAG Tools — Browser Local Knowledge Base',
+    'route.search': 'Search — RAG Tools',
+    'route.docs': 'Documents — RAG Tools',
+    'route.settings': 'Settings — RAG Tools',
   },
 
   'zh-CN': {
@@ -179,6 +263,90 @@ const translations = {
     'pro.activate': '激活',
     'pro.activated': 'Pro 已激活！',
     'pro.invalid': '无效的 License Key',
+
+    // QA
+    'qa.ask': '提问',
+    'qa.stop': '停止',
+    'qa.search_mode': '🔍 搜索',
+    'qa.loading_model': '正在加载 AI 模型（{pct}%）...',
+    'qa.model_ready': '✅ AI 模型就绪！可以提问了。',
+    'qa.model_failed': 'AI 模型加载失败，可能缺少 WebGPU。',
+    'qa.error': '错误：{msg}',
+    'qa.loading_wait': 'AI 模型仍在加载，请稍候...',
+    'qa.init': '正在初始化 AI 模型...',
+    'qa.init_failed': 'AI 模型初始化失败：{msg}',
+    'qa.no_answer': '获取回答失败',
+
+    // KB / Doc management
+    'kb.required': '请先创建或选择知识库。',
+
+    // Ingestion status
+    'ingestion.too_little': '提取到的文本过少',
+    'ingestion.text_only': '模型加载中，仅存文本...',
+    'ingestion.chunks_done': '{count} 个分块',
+
+    // Common actions
+    'common.delete': '删除',
+    'common.cancel': '取消',
+
+    // KB / Doc management
+    'kb.create_failed': '创建知识库失败',
+    'kb.deleted': '知识库已删除',
+    'kb.delete_title': '删除知识库',
+    'doc.deleted': '文档已删除',
+    'doc.delete_title': '删除文档',
+
+    // Search
+    'search.no_results_title': '没有结果',
+    'search.searching': '搜索中...',
+
+    // Settings
+    'settings.title': '⚙️ 设置',
+    'settings.tab_models': '🧠 模型',
+    'settings.tab_language': '🌐 语言',
+    'settings.embedding_model': '嵌入模型',
+    'settings.qa_model': '问答模型（RAG 问答）',
+    'settings.idle': '待命',
+    'settings.cache_checking': '📦 缓存：检查中...',
+    'settings.cache_cached': '📦 缓存：已缓存',
+    'settings.cache_not_cached': '📦 缓存：未缓存',
+    'settings.cache_cleared': '📦 缓存：已清除',
+    'settings.download': '⬇ 下载',
+    'settings.redownload': '🔄 重新下载',
+    'settings.downloading': '⏳ 下载中...',
+    'settings.loading': '⏳ 加载中...',
+    'settings.webgpu_unavailable': '⚠ 不可用 WebGPU',
+    'settings.model_cache': '🗄️ 模型缓存',
+    'settings.cached_files': '已缓存文件：',
+    'settings.total_size': '总大小：',
+    'settings.clear_cache': '🗑 清除模型缓存',
+    'settings.cache_warning': '清除缓存后，下次使用需重新下载模型。',
+    'settings.embedding_ready': '嵌入模型就绪！',
+    'settings.embedding_failed': '模型加载失败：{msg}',
+    'settings.qa_ready': '问答模型就绪！',
+    'settings.qa_failed': '问答模型加载失败：{msg}',
+    'settings.switching': '正在切换到 {model}，下载完成后请重新索引文档。',
+    'settings.cache_cleared_toast': '缓存已清除，点击下载重新下载。',
+    'settings.cache_clear_success': '模型缓存已清除',
+    'settings.cache_clear_failed': '清除缓存失败',
+    'settings.na': 'N/A',
+    'settings.language': '语言 / Language',
+    'settings.status_ready': '就绪',
+    'settings.status_error': '出错',
+    'settings.status_downloading': '下载中',
+    'settings.status_loading': '加载中',
+    'settings.language_set': '已切换语言：{name}',
+
+    // Model download overlay
+    'overlay.title': '正在加载 AI 模型',
+    'overlay.desc': '正在下载嵌入模型（约 23MB）。\n首次使用只需一次下载，之后离线可用。',
+    'overlay.dismiss': '继续浏览',
+
+    // Router titles
+    'route.home': 'RAG Tools — 浏览器本地知识库',
+    'route.search': '搜索 — RAG Tools',
+    'route.docs': '文档 — RAG Tools',
+    'route.settings': '设置 — RAG Tools',
   },
 };
 

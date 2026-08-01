@@ -17,6 +17,7 @@ import { readFileAsArrayBuffer, readFileAsText, setupDragDrop, setupFileInput,
          validateFile, stripMarkdown } from './file-handler.js';
 import { initModel, embed, embedSingle, isModelReady, getModelInfo } from './embedder.js';
 import { hybridSearch, keywordSearch, highlightMatches } from './search.js';
+import { updateTitle } from './router.js';
 import { initLicense } from './license.js';
 import { initQAEngine, askQuestion, isWebGPUSupported, getEngineStatus, getQAModelId, abortAnswer, isAnswering, unloadQAEngine } from './qa.js';
 import {
@@ -82,11 +83,79 @@ function applyLocale() {
   const dropZoneHint = $('#drop-zone-hint');
   if (dropZoneHint) dropZoneHint.textContent = t('dropzone.hint');
 
+  // QA panel
   const qaInput = $('#qa-input');
   if (qaInput) qaInput.placeholder = t('qa.placeholder');
 
   const qaToggle = $('#qa-toggle');
-  if (qaToggle) qaToggle.textContent = '🤖 ' + t('qa.toggle');
+  if (qaToggle) { qaToggle.title = t('qa.toggle'); qaToggle.textContent = isQAMode ? t('qa.search_mode') : '🤖 ' + t('qa.toggle'); }
+
+  const qaSend = $('#qa-send');
+  if (qaSend) qaSend.textContent = t('qa.ask');
+  const qaStop = $('#qa-stop');
+  if (qaStop) qaStop.textContent = '⏹ ' + t('qa.stop');
+
+  // Sidebar
+  const kbTitle = $('#sidebar-kb-title');
+  if (kbTitle) kbTitle.textContent = t('kb.title');
+  const docsTitle = $('#sidebar-docs-title');
+  if (docsTitle) docsTitle.textContent = t('docs.title');
+  const addKbBtn = $('#add-kb-btn');
+  if (addKbBtn) addKbBtn.title = t('kb.new');
+  const kbEmpty = $('#kb-empty');
+  if (kbEmpty) kbEmpty.textContent = t('kb.empty');
+
+  // Settings dialog (static labels; dynamic status is set by the update fns below)
+  const sTitle = $('#settings-title');
+  if (sTitle) sTitle.textContent = t('settings.title');
+  const tabModels = document.querySelector('.settings-tab[data-tab="models"]');
+  if (tabModels) tabModels.textContent = t('settings.tab_models');
+  const tabLang = document.querySelector('.settings-tab[data-tab="language"]');
+  if (tabLang) tabLang.textContent = t('settings.tab_language');
+  const embedTitle = $('#embed-model-title');
+  if (embedTitle) embedTitle.textContent = t('settings.embedding_model');
+  const qaModelTitle = $('#qa-model-title');
+  if (qaModelTitle) qaModelTitle.textContent = t('settings.qa_model');
+  const langTitle = $('#settings-lang-title');
+  if (langTitle) langTitle.textContent = t('settings.language');
+  const cacheTitle = $('#model-cache-title');
+  if (cacheTitle) cacheTitle.textContent = t('settings.model_cache');
+  const filesLabel = $('#cache-files-label');
+  if (filesLabel) filesLabel.textContent = t('settings.cached_files');
+  const totalLabel = $('#cache-total-label');
+  if (totalLabel) totalLabel.textContent = t('settings.total_size');
+  const clearBtn = $('#clear-cache-btn');
+  if (clearBtn) clearBtn.textContent = t('settings.clear_cache');
+  const cacheWarn = $('#cache-warning');
+  if (cacheWarn) cacheWarn.textContent = t('settings.cache_warning');
+  const webgpuNote = $('#qa-webgpu-note');
+  if (webgpuNote) webgpuNote.textContent = t('settings.webgpu_unavailable');
+  const embedDl = $('#embed-download-btn');
+  if (embedDl) embedDl.textContent = t('settings.download');
+  const embedRedl = $('#embed-redownload-btn');
+  if (embedRedl) embedRedl.textContent = t('settings.redownload');
+  const qaDl = $('#qa-download-btn');
+  if (qaDl) qaDl.textContent = t('settings.download');
+
+  // If the settings dialog is open, refresh its dynamic status in the new locale.
+  const settingsPage = document.getElementById('settings-page');
+  if (settingsPage && settingsPage.classList.contains('active')) {
+    updateEmbeddingCard(getEmbeddingModelInfo().status);
+    updateQACard(getQAModelInfo().status);
+    refreshCacheInfo();
+  }
+
+  // Model download overlay
+  const ovTitle = $('#model-download-title');
+  if (ovTitle) ovTitle.textContent = t('overlay.title');
+  const ovDesc = $('#model-download-desc');
+  if (ovDesc) ovDesc.innerHTML = t('overlay.desc').replace(/\n/g, '<br>');
+  const ovDismiss = $('#model-download-dismiss');
+  if (ovDismiss) ovDismiss.textContent = t('overlay.dismiss');
+
+  // Browser title for the current route.
+  const currentRoute = state.get('route');
+  if (currentRoute) updateTitle(currentRoute);
 
   // Re-render dynamic sections that read from i18n (DB must be open).
   refreshKBList();
@@ -137,7 +206,7 @@ function setupEventListeners() {
           const name = input?.value.trim();
           if (name) handleCreateKB(name);
         }},
-        { label: 'Cancel', variant: 'secondary' },
+        { label: t('common.cancel'), variant: 'secondary' },
       ],
     });
     // Auto-focus
@@ -233,7 +302,7 @@ let qaEngineInitialized = false;
 function toggleQAMode() {
   const kbId = state.get('currentKBId');
   if (!kbId) {
-    showToast('Please select a knowledge base first.', 'warning');
+    showToast(t('kb.required'), 'warning');
     return;
   }
 
@@ -246,7 +315,7 @@ function toggleQAMode() {
     // Switch to QA mode
     qaPanel.style.display = 'flex';
     qaToggle.textContent = '🔍 Search';
-    searchInput.placeholder = 'Ask AI about your documents...';
+    searchInput.placeholder = t('qa.placeholder');
     qaInput.focus();
 
     // Ensure embedding model is loaded (needed for search behind QA)
@@ -265,22 +334,22 @@ function toggleQAMode() {
     if (!qaEngineInitialized) {
       initQAEngine((progress) => {
         if (progress.status === 'downloading') {
-          addQAMessage('assistant', `⏳ Loading AI model (${Math.round(progress.progress * 100)}%)...`, true);
+          addQAMessage('assistant', t('qa.loading_model', { pct: Math.round(progress.progress * 100) }), true);
         } else if (progress.status === 'ready') {
           qaEngineInitialized = true;
-          addQAMessage('assistant', '✅ AI model ready! Ask me anything about your documents.');
+          addQAMessage('assistant', t('qa.model_ready'));
         } else if (progress.status === 'error') {
           addQAMessage('assistant', '❌ Failed to load AI model. WebGPU may not be available.');
         }
       }).catch((err) => {
-        addQAMessage('assistant', '❌ Error: ' + err.message);
+        addQAMessage('assistant', '❌ ' + t('qa.error', { msg: err.message }));
       });
     }
   } else {
     // Switch back to search mode
     qaPanel.style.display = 'none';
     qaToggle.textContent = '🤖 Ask AI';
-    searchInput.placeholder = 'Search your documents...';
+    searchInput.placeholder = t('search.placeholder');
   }
 }
 
@@ -291,32 +360,32 @@ async function handleQAQuestion() {
 
   const kbId = state.get('currentKBId');
   if (!kbId) {
-    showToast('Please select a knowledge base first.', 'warning');
+    showToast(t('kb.required'), 'warning');
     return;
   }
 
   // Check QA engine status
   const status = getEngineStatus();
   if (status === 'loading') {
-    showToast('AI model is still loading, please wait...', 'warning');
+    showToast(t('qa.loading_wait'), 'warning');
     return;
   }
   if (status === 'idle' || status === 'error') {
     // Try to init the engine
-    showToast('Initializing AI model...', 'info');
+    showToast(t('qa.init'), 'info');
     try {
       await initQAEngine((progress) => {
         if (progress.status === 'downloading') {
-          addQAMessage('assistant', `⏳ Loading AI model (${Math.round(progress.progress * 100)}%)...`, true);
+          addQAMessage('assistant', t('qa.loading_model', { pct: Math.round(progress.progress * 100) }), true);
         } else if (progress.status === 'ready') {
           qaEngineInitialized = true;
-          addQAMessage('assistant', '✅ AI model ready! Ask me anything about your documents.');
+          addQAMessage('assistant', t('qa.model_ready'));
         } else if (progress.status === 'error') {
           addQAMessage('assistant', '❌ Failed to load AI model. WebGPU may not be available.');
         }
       });
     } catch (err) {
-      showToast('Failed to initialize AI model: ' + err.message, 'error');
+      showToast(t('qa.init_failed', { msg: err.message }), 'error');
       return;
     }
   }
@@ -350,7 +419,7 @@ async function handleQAQuestion() {
   } catch (err) {
     console.error('QA error:', err);
     loadingMsg.classList.remove('loading');
-    typingSpan.textContent = '❌ Error: ' + (err.message || 'Failed to get answer');
+    typingSpan.textContent = '❌ ' + t('qa.error', { msg: err.message || t('qa.no_answer') });
   } finally {
     // Restore send button, hide stop button
     $('#qa-stop').style.display = 'none';
@@ -380,7 +449,7 @@ let isIngesting = false;
 async function handleFiles(files) {
   const kbId = state.get('currentKBId');
   if (!kbId) {
-    showToast('Please create or select a knowledge base first.', 'warning');
+    showToast(t('kb.required'), 'warning');
     return;
   }
 
@@ -543,7 +612,7 @@ async function processSingleFile(file, kbId, progressContainer) {
     }
 
     if (!text || text.trim().length < 10) {
-      statusText.textContent = '⚠️ Too little text extracted';
+      statusText.textContent = '⚠️ ' + t('ingestion.too_little');
       return false;
     }
 
@@ -572,7 +641,7 @@ async function processSingleFile(file, kbId, progressContainer) {
         console.warn('Embedding failed — storing chunks without vectors');
       }
     } else {
-      statusText.textContent = '⏳ Model loading, storing text only...';
+      statusText.textContent = '⏳ ' + t('ingestion.text_only');
     }
 
     // ─── 4. Store in IndexedDB (with or without embeddings) ─
@@ -607,7 +676,7 @@ async function processSingleFile(file, kbId, progressContainer) {
     const stats = await getKBStats(kbId);
     await updateKB(kbId, { chunkCount: stats.chunkCount, storageBytes: stats.storageBytes });
 
-    statusText.textContent = '✅ ' + chunks.length + ' chunks';
+    statusText.textContent = '✅ ' + t('ingestion.chunks_done', { count: chunks.length });
     return true;
 
   } catch (err) {
@@ -658,7 +727,7 @@ async function performSearch(query) {
   }
 
   // Show brief loading for search
-  renderLoadingState(resultsContainer, { message: 'Searching...' });
+  renderLoadingState(resultsContainer, { message: t('search.searching') });
 
   try {
     // Hybrid search: keyword always works, semantic adds on top when model is ready
@@ -748,7 +817,7 @@ function renderSearchResults(results, query) {
   container.innerHTML = '';
 
   if (results.length === 0) {
-    renderEmptyState(container, { icon: '🔍', title: 'No results' });
+    renderEmptyState(container, { icon: '🔍', title: t('search.no_results_title') });
     return;
   }
 
@@ -834,18 +903,18 @@ async function handleCreateKB(name) {
     await refreshKBList();
     state.set('currentKBId', kb.id);
   } catch (err) {
-    showToast('Failed to create knowledge base', 'error');
+    showToast(t('kb.create_failed'), 'error');
   }
 }
 
 async function handleDeleteKB(kbId) {
   showModal({
-    title: 'Delete Knowledge Base',
+    title: t('kb.delete_title'),
     content: t('kb.delete.confirm'),
     actions: [
       { label: 'Delete', variant: 'danger', onClick: async () => {
         await deleteKB(kbId);
-        showToast('Knowledge base deleted', 'success');
+        showToast(t('kb.deleted'), 'success');
         await refreshKBList();
         const kbs = state.get('knowledgeBases');
         state.set('currentKBId', kbs.length > 0 ? kbs[0].id : null);
@@ -899,7 +968,7 @@ function updateSidebarActiveKB(kbId) {
 
 async function handleDeleteDocument(docId, kbId) {
   showModal({
-    title: 'Delete Document',
+    title: t('doc.delete_title'),
     content: t('docs.delete.confirm'),
     actions: [
       { label: 'Delete', variant: 'danger', onClick: async () => {
@@ -907,7 +976,7 @@ async function handleDeleteDocument(docId, kbId) {
         // Recalc KB stats
         const stats = await getKBStats(kbId);
         await updateKB(kbId, { chunkCount: stats.chunkCount, storageBytes: stats.storageBytes });
-        showToast('Document deleted', 'success');
+        showToast(t('doc.deleted'), 'success');
         await refreshDocList();
         await refreshStats();
       }},
@@ -1065,7 +1134,7 @@ async function renderSettingsPage() {
   } else {
     qaCard.style.display = 'block';
     webgpuNote.style.display = 'flex';
-    document.getElementById('qa-status-badge').textContent = 'N/A';
+    document.getElementById('qa-status-badge').textContent = t('settings.na');
     document.getElementById('qa-status-badge').className = 'model-status-badge idle';
     document.getElementById('qa-download-btn').disabled = true;
   }
@@ -1075,7 +1144,7 @@ async function renderSettingsPage() {
   updateEmbedCacheStatus(embedSelect.value);
   if (qaInfo.webgpu) {
     checkModelCache('mlc-ai/Qwen2.5-0.5B').then(cached => {
-      document.getElementById('qa-cache-status').textContent = cached ? '📦 Cache: cached' : '📦 Cache: not cached';
+      document.getElementById('qa-cache-status').textContent = cached ? t('settings.cache_cached') : t('settings.cache_not_cached');
     });
   }
 
@@ -1098,10 +1167,10 @@ async function renderSettingsPage() {
     updateEmbedCacheStatus(selected);
     if (selected !== getEmbeddingModelInfo().current.id) {
       // Different model selected — re-init needed
-      showToast(`Switching to ${selected}. Re-index documents after download.`, 'info');
+      showToast(t('settings.switching', { model: selected }), 'info');
     }
     embedDownloadBtn.disabled = true;
-    embedDownloadBtn.textContent = '⏳ Downloading...';
+    embedDownloadBtn.textContent = t('settings.downloading');
     try {
       // Show progress section immediately
       document.getElementById('embed-progress-section').style.display = 'block';
@@ -1120,24 +1189,24 @@ async function renderSettingsPage() {
           }
         },
       });
-      showToast('Embedding model ready!', 'success');
+      showToast(t('settings.embedding_ready'), 'success');
       // Refresh cache status and card info after download
       updateEmbedCacheStatus(selected);
       updateEmbeddingCard('ready');
       refreshCacheInfo();
     } catch (err) {
-      showToast('Failed to load model: ' + err.message, 'error');
+      showToast(t('settings.embedding_failed', { msg: err.message }), 'error');
     } finally {
       embedDownloadBtn.disabled = false;
-      embedDownloadBtn.textContent = '⬇ Download';
+      embedDownloadBtn.textContent = t('settings.download');
     }
   };
 
   // Embed model re-download (clear cache first)
   document.getElementById('embed-redownload-btn').onclick = async () => {
     await clearModelCache();
-    document.getElementById('embed-cache-status').textContent = '📦 Cache: cleared';
-    showToast('Cache cleared. Click Download to re-download.', 'info');
+    document.getElementById('embed-cache-status').textContent = t('settings.cache_cleared');
+    showToast(t('settings.cache_cleared_toast'), 'info');
   };
 
   // QA model selector change → update card + cache
@@ -1145,7 +1214,7 @@ async function renderSettingsPage() {
     const selected = qaSelect.value;
     updateQACardFromId(selected);
     checkModelCache(selected.split('-')[0]).then(cached => {
-      document.getElementById('qa-cache-status').textContent = cached ? '📦 Cache: cached' : '📦 Cache: not cached';
+      document.getElementById('qa-cache-status').textContent = cached ? t('settings.cache_cached') : t('settings.cache_not_cached');
     });
   };
 
@@ -1159,7 +1228,7 @@ async function renderSettingsPage() {
     document.getElementById('qa-progress-fill').style.width = '0%';
     document.getElementById('qa-progress-label').textContent = '0%';
     qaDownloadBtn.disabled = true;
-    qaDownloadBtn.textContent = '⏳ Loading...';
+    qaDownloadBtn.textContent = t('settings.loading');
     try {
       await initQAEngine({
         modelId: selected,
@@ -1173,14 +1242,14 @@ async function renderSettingsPage() {
           }
         },
       });
-      showToast('QA model ready!', 'success');
+      showToast(t('settings.qa_ready'), 'success');
       updateQACard('ready');
       refreshCacheInfo();
     } catch (err) {
-      showToast('Failed to load QA model: ' + err.message, 'error');
+      showToast(t('settings.qa_failed', { msg: err.message }), 'error');
     } finally {
       qaDownloadBtn.disabled = false;
-      qaDownloadBtn.textContent = '⬇ Download';
+      qaDownloadBtn.textContent = t('settings.download');
     }
   };
 
@@ -1188,12 +1257,12 @@ async function renderSettingsPage() {
   document.getElementById('clear-cache-btn').onclick = async () => {
     const ok = await clearModelCache();
     if (ok) {
-      showToast('Model cache cleared', 'success');
+      showToast(t('settings.cache_clear_success'), 'success');
       refreshCacheInfo();
-      document.getElementById('embed-cache-status').textContent = '📦 Cache: not cached';
-      document.getElementById('qa-cache-status').textContent = '📦 Cache: not cached';
+      document.getElementById('embed-cache-status').textContent = t('settings.cache_not_cached');
+      document.getElementById('qa-cache-status').textContent = t('settings.cache_not_cached');
     } else {
-      showToast('Failed to clear cache', 'error');
+      showToast(t('settings.cache_clear_failed'), 'error');
     }
   };
 
@@ -1204,7 +1273,7 @@ async function renderSettingsPage() {
       setLocale(lang);
       document.querySelectorAll('.settings-lang-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      showToast(`Language set to ${lang === 'zh-CN' ? '中文' : 'English'}`, 'success');
+      showToast(t('settings.language_set', { name: lang === 'zh-CN' ? '简体中文' : 'English' }), 'success');
       // Re-render sidebar/search/stats so the switch takes effect immediately.
       applyLocale();
     };
@@ -1247,7 +1316,7 @@ async function renderSettingsPage() {
 function updateEmbeddingCard(status) {
   const info = getEmbeddingModelInfo();
   const badge = document.getElementById('embed-status-badge');
-  badge.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+  badge.textContent = (STATUS_LABELS[status] || (() => status))();
   badge.className = 'model-status-badge ' + status;
   document.getElementById('embed-model-name').textContent = info.current.name;
   document.getElementById('embed-model-dims').textContent = info.current.dims + '-dim';
@@ -1265,14 +1334,22 @@ function updateEmbeddingCardFromId(modelId) {
   document.getElementById('embed-model-name').textContent = model.name;
   document.getElementById('embed-model-dims').textContent = model.dims + '-dim';
   document.getElementById('embed-model-size').textContent = model.size;
-  document.getElementById('embed-status-badge').textContent = 'Idle';
+  document.getElementById('embed-status-badge').textContent = t('settings.idle');
   document.getElementById('embed-status-badge').className = 'model-status-badge idle';
 }
+
+const STATUS_LABELS = {
+  idle: () => t('settings.idle'),
+  ready: () => t('settings.status_ready'),
+  error: () => t('settings.status_error'),
+  downloading: () => t('settings.status_downloading'),
+  loading: () => t('settings.status_loading'),
+};
 
 function updateQACard(status) {
   if (!status) return;
   const badge = document.getElementById('qa-status-badge');
-  badge.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+  badge.textContent = (STATUS_LABELS[status] || (() => status))();
   badge.className = 'model-status-badge ' + status;
 }
 
@@ -1281,9 +1358,9 @@ function updateQACardFromId(modelId) {
   const model = available.find(m => m.id === modelId);
   if (!model) return;
   document.getElementById('qa-model-name').textContent = model.display || model.name;
-  document.getElementById('qa-status-badge').textContent = 'Idle';
+  document.getElementById('qa-status-badge').textContent = t('settings.idle');
   document.getElementById('qa-status-badge').className = 'model-status-badge idle';
-  document.getElementById('qa-cache-status').textContent = '📦 Cache: checking...';
+  document.getElementById('qa-cache-status').textContent = t('settings.cache_checking');
 }
 
 async function refreshCacheInfo() {
@@ -1299,6 +1376,6 @@ async function refreshCacheInfo() {
 function updateEmbedCacheStatus(modelId) {
   const pattern = modelId.includes('/') ? modelId.split('/')[1] : modelId;
   checkModelCache(pattern).then(cached => {
-    document.getElementById('embed-cache-status').textContent = cached ? '📦 Cache: cached' : '📦 Cache: not cached';
+    document.getElementById('embed-cache-status').textContent = cached ? t('settings.cache_cached') : t('settings.cache_not_cached');
   });
 }

@@ -793,7 +793,7 @@
       <aside id="sidebar">
         <div class="sidebar-section">
           <div class="sidebar-section-header">
-            <h3>Knowledge Bases</h3>
+            <h3 id="sidebar-kb-title">Knowledge Bases</h3>
             <button id="add-kb-btn" class="sidebar-btn" title="New knowledge base">+</button>
           </div>
           <div id="kb-list"></div>
@@ -801,7 +801,7 @@
         </div>
         <div class="sidebar-section">
           <div class="sidebar-section-header">
-            <h3>Documents</h3>
+            <h3 id="sidebar-docs-title">Documents</h3>
           </div>
           <div id="doc-list"></div>
           <div id="doc-empty" class="empty-hint">No documents</div>
@@ -825,6 +825,7 @@
             <input id="qa-input" type="text" placeholder="Ask a question about your documents..." autocomplete="off" style="flex:1;padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text-primary);font-size:0.875rem;outline:none;">
             <button id="qa-send" class="btn-primary">Ask</button>
             <button id="qa-stop" class="btn-danger" style="display:none;">⏹ Stop</button>
+
           </div>
         </div>
 
@@ -846,7 +847,7 @@
         <div id="settings-page">
           <div class="settings-dialog">
             <div class="settings-header">
-              <h3>⚙️ Settings</h3>
+              <h3 id="settings-title">⚙️ Settings</h3>
               <button id="settings-close" class="settings-close" aria-label="Close settings">✕</button>
             </div>
             <div class="settings-tabs">
@@ -861,7 +862,7 @@
               <div class="model-card-header">
                 <div class="model-card-title">
                   <span class="model-icon">🔤</span>
-                  <span>Embedding Model</span>
+                  <span id="embed-model-title">Embedding Model</span>
                   <span class="model-status-badge idle" id="embed-status-badge">Idle</span>
                 </div>
               </div>
@@ -890,7 +891,7 @@
               <div class="model-card-header">
                 <div class="model-card-title">
                   <span class="model-icon">🤖</span>
-                  <span>QA Model (RAG Q&A)</span>
+                  <span id="qa-model-title">QA Model (RAG Q&A)</span>
                   <span class="model-status-badge idle" id="qa-status-badge">Idle</span>
                 </div>
               </div>
@@ -915,13 +916,13 @@
 
             <!-- Cache Management -->
             <div class="cache-section">
-              <h4>🗄️ Model Cache</h4>
+              <h4 id="model-cache-title">🗄️ Model Cache</h4>
               <div class="cache-info">
-                Cached files: <span class="cache-highlight" id="cache-file-count">0</span> |
-                Total size: <span class="cache-highlight" id="cache-total-size">0 B</span>
+                <span id="cache-files-label">Cached files:</span> <span class="cache-highlight" id="cache-file-count">0</span> |
+                <span id="cache-total-label">Total size:</span> <span class="cache-highlight" id="cache-total-size">0 B</span>
               </div>
               <button class="btn-danger" id="clear-cache-btn">🗑 Clear model cache</button>
-              <div class="cache-warning">Clearing the cache will re-download models on next use.</div>
+              <div class="cache-warning" id="cache-warning">Clearing the cache will re-download models on next use.</div>
             </div>
           </div>
 
@@ -931,7 +932,7 @@
               <div class="model-card-header">
                 <div class="model-card-title">
                   <span class="model-icon">🌐</span>
-                  <span>Language / 语言</span>
+                  <span id="settings-lang-title">Language / 语言</span>
                 </div>
               </div>
               <div class="settings-lang-buttons">
@@ -950,8 +951,8 @@
   <div id="model-download-overlay">
     <div id="model-download-dialog">
       <div style="font-size:2.5rem;margin-bottom:0.5rem;">🧠</div>
-      <h2>Loading AI Model</h2>
-      <p>Downloading embedding model (~23MB).<br>First-time setup, one-time only. Cached for offline use.</p>
+      <h2 id="model-download-title">Loading AI Model</h2>
+      <p id="model-download-desc">Downloading embedding model (~23MB).<br>First-time setup, one-time only. Cached for offline use.</p>
       <div id="model-download-bar" style="height:8px;background:var(--bg-secondary);border-radius:4px;overflow:hidden;margin-bottom:0.75rem;">
         <div id="model-download-fill" style="width:0%;height:100%;background:var(--accent);border-radius:4px;transition:width 0.3s;"></div>
       </div>
@@ -966,6 +967,7 @@
     import { initRouter } from './src/router.js';
     import { initTheme } from './src/ui.js';
     import { initApp } from './src/app.js';
+    import { t } from './src/i18n.js';
 
     // Register Service Worker
     if ('serviceWorker' in navigator) {
@@ -1017,18 +1019,18 @@
       const error = document.getElementById('model-download-error');
       if (status === 'downloading') {
         overlay.classList.add('active');
-        label.textContent = 'Downloading embedding model...';
+        label.textContent = t('model.downloading');
         error.style.display = 'none';
       } else if (status === 'loading') {
         overlay.classList.add('active');
-        label.textContent = 'Loading model into memory...';
+        label.textContent = t('model.loading');
       } else if (status === 'error') {
         overlay.classList.remove('active');
         // Show inline error — user can refresh
         const errorEl = document.getElementById('model-download-error');
         if (errorEl) {
           errorEl.style.display = 'block';
-          errorEl.textContent = 'Failed to load model. Please refresh and try again.';
+          errorEl.textContent = t('model.error');
         }
       } else {
         overlay.classList.remove('active');
