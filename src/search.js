@@ -49,19 +49,23 @@ export async function keywordSearch(query, kbId, options = {}) {
 function extractTerms(query) {
   const cleaned = query.toLowerCase().replace(/[^\w一-鿿\s]/g, ' ').trim();
 
-  // Space-separated words (English)
+  // Space-separated words (English) — keep multi-char words
   const words = cleaned.split(/\s+/).filter((t) => t.length > 1);
 
-  // Chinese bigram: extract every 2-character segment for non-space runs
+  // Chinese: emit bigrams for multi-char runs, and KEEP single CJK characters
+  // as terms so one-character queries (e.g. "价") still find results. The old
+  // line.length > 2 guard also dropped two-character queries (e.g. "价格").
   const lines = cleaned.split(/\s+/);
   for (const line of lines) {
-    if (/[一-鿿]/.test(line) && line.length > 2) {
-      for (let i = 0; i < line.length - 1; i++) {
-        const bigram = line.slice(i, i + 2);
-        // Only add if not already present as a word
-        if (bigram.length === 2 && !words.includes(bigram)) {
-          words.push(bigram);
-        }
+    if (!/[一-鿿]/.test(line)) continue;
+    if (line.length === 1) {
+      if (!words.includes(line)) words.push(line);
+      continue;
+    }
+    for (let i = 0; i < line.length - 1; i++) {
+      const bigram = line.slice(i, i + 2);
+      if (bigram.length === 2 && !words.includes(bigram)) {
+        words.push(bigram);
       }
     }
   }
@@ -271,14 +275,12 @@ function escapeRegex(str) {
 export function highlightMatches(text, query) {
   if (!query || !text) return text;
 
-  const terms = query
-    .toLowerCase()
-    .split(/\s+/)
-    .filter((t) => t.length > 1);
-
+  // Use the SAME term extraction as search so highlights align with what matched.
+  const terms = extractTerms(query);
   if (terms.length === 0) return text;
 
-  const escaped = terms.map((t) => escapeRegex(t));
+  // Longest-first so a bigram wins over its single chars in alternation.
+  const escaped = terms.slice().sort((a, b) => b.length - a.length).map((t) => escapeRegex(t));
   const pattern = new RegExp('(' + escaped.join('|') + ')', 'gi');
 
   const parts = [];
