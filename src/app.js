@@ -44,8 +44,38 @@ export async function initApp() {
     await refreshStats();
   }
 
+  // Apply locale to static placeholders and re-render dynamic sections.
+  applyLocale();
+
   // Auto-init model on first search or ingestion
   console.log('RAG Tools initialized.');
+}
+
+/**
+ * Apply the current locale to static DOM text and re-render dynamic
+ * content. Called on init (so a saved zh-CN locale is applied immediately)
+ * and after a language switch.
+ */
+function applyLocale() {
+  const searchInput = $('#search-input');
+  if (searchInput) searchInput.placeholder = t('search.placeholder');
+
+  const dropZoneText = $('#drop-zone-text');
+  if (dropZoneText) dropZoneText.textContent = t('dropzone.text');
+
+  const dropZoneHint = $('#drop-zone-hint');
+  if (dropZoneHint) dropZoneHint.textContent = t('dropzone.hint');
+
+  const qaInput = $('#qa-input');
+  if (qaInput) qaInput.placeholder = t('qa.placeholder');
+
+  const qaToggle = $('#qa-toggle');
+  if (qaToggle) qaToggle.textContent = '🤖 ' + t('qa.toggle');
+
+  // Re-render dynamic sections that read from i18n (DB must be open).
+  refreshKBList();
+  refreshDocList();
+  refreshStats();
 }
 
 // ─── Event Listeners ─────────────────────────────────────────────
@@ -462,17 +492,10 @@ async function processSingleFile(file, kbId, progressContainer) {
 }
 
 async function extractAdvancedFormat(file, ext) {
-  // Placeholder for DOCX/EPUB
-  const arrayBuf = await readFileAsArrayBuffer(file);
-
-  if (ext === 'docx') {
-    // DOCX is a ZIP of XML — will implement in V2 with JSZip
-    return `[DOCX support requires Pro — file: ${file.name}]`;
-  } else if (ext === 'epub') {
-    // EPUB is a ZIP of HTML — will implement in V2 with JSZip
-    return `[EPUB support requires Pro — file: ${file.name}]`;
-  }
-  return '';
+  // DOCX/EPUB extraction is not implemented yet. The file validator rejects these
+  // extensions before this is reached; throwing here is defense-in-depth so any
+  // future wiring fails loudly instead of silently storing placeholder text.
+  throw new Error(t('ingestion.unsupported_format', { ext }));
 }
 
 // ─── Search ──────────────────────────────────────────────────────
@@ -520,10 +543,15 @@ async function performSearch(query) {
         icon: '🔍',
         title: t('search.no_results', { query }),
       });
-      return;
+    } else {
+      renderSearchResults(results, query);
     }
 
-    renderSearchResults(results, query);
+    // Warn when stored embeddings were created with a different model — semantic
+    // results are degraded for those documents until they are re-indexed.
+    if (results.warning === 'model_changed') {
+      renderModelChangeNotice(resultsContainer);
+    }
   } catch (err) {
     console.error('Search error:', err);
     renderErrorState(resultsContainer, { message: t('error.generic') });
@@ -543,6 +571,23 @@ function cleanTableText(text) {
     .map(line => line.replace(/^\||\|$/g, '').trim())       // remove leading/trailing pipes
     .join('\n')
     .trim();
+}
+
+/**
+ * Render an inline notice that stored embeddings don't match the current model.
+ * Semantic search is degraded for those documents until they are re-indexed.
+ */
+function renderModelChangeNotice(container) {
+  const notice = createElement('div', {
+    style: {
+      display: 'flex', alignItems: 'center', gap: '0.5rem',
+      padding: '0.625rem 0.875rem', marginBottom: '0.75rem',
+      borderRadius: '8px', fontSize: '0.8125rem',
+      background: 'var(--accent-light)', color: 'var(--text-secondary)',
+      border: '1px solid var(--border)',
+    },
+  }, ['⚠️ ' + t('search.model_changed')]);
+  container.prepend(notice);
 }
 
 function renderSearchResults(results, query) {
@@ -990,6 +1035,8 @@ async function renderSettingsPage() {
       document.querySelectorAll('.settings-lang-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       showToast(`Language set to ${lang === 'zh-CN' ? '中文' : 'English'}`, 'success');
+      // Re-render sidebar/search/stats so the switch takes effect immediately.
+      applyLocale();
     };
   });
   // Highlight current language

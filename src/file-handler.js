@@ -2,7 +2,7 @@
  * File drag/drop, input selection, validation, and reading.
  */
 
-const SUPPORTED_TYPES = ['.pdf', '.txt', '.md', '.docx', '.epub'];
+const SUPPORTED_TYPES = ['.pdf', '.txt', '.md'];
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024;   // 100 MB
 

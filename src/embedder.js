@@ -154,6 +154,10 @@ export function getModelInfo() {
  * Since vectors are L2-normalized, this is a simple dot product.
  */
 export function cosineSimilarity(a, b) {
+  // Dimension guard: vectors produced by different embedding models (e.g. 384-dim
+  // MiniLM vs 768-dim mpnet) must not be compared — the loop would read `undefined`
+  // past the shorter vector and yield NaN. Return 0 so mismatched chunks score 0.
+  if (!a || !b || a.length !== b.length) return 0;
   let dot = 0;
   for (let i = 0; i < a.length; i++) {
     dot += a[i] * b[i];

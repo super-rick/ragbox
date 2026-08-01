@@ -9,7 +9,8 @@ class AppState extends EventTarget {
     this._state = {
       // UI state
       theme: localStorage.getItem('rag-theme') || 'auto',
-      locale: localStorage.getItem('rag-locale') || navigator.language.startsWith('zh') ? 'zh-CN' : 'en',
+      // Parenthesized so a saved locale ('en' included) wins over browser detection.
+      locale: localStorage.getItem('rag-locale') || (navigator.language.startsWith('zh') ? 'zh-CN' : 'en'),
       route: 'home',
 
       // Knowledge base

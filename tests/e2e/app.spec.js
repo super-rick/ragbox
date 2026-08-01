@@ -85,7 +85,7 @@ test.describe('Initial State', () => {
     // Drop zone
     await expect(page.locator('#drop-zone')).toBeVisible();
     await expect(page.locator('#drop-zone-text')).toHaveText('Drop documents here, or click to select');
-    await expect(page.locator('#drop-zone-hint')).toHaveText('Supports PDF, TXT, MD, DOCX, EPUB');
+    await expect(page.locator('#drop-zone-hint')).toHaveText('Supports PDF, TXT, MD');
 
     // Results area is empty
     await expect(page.locator('#results-container')).toBeEmpty();

@@ -3,6 +3,7 @@
  */
 
 import { state } from './state.js';
+import { t } from './i18n.js';
 
 // ─── DOM Query Shortcuts ────────────────────────────────────────
 
@@ -251,9 +252,9 @@ export function renderStats(stats) {
   if (!el) return;
   el.innerHTML = '';
   el.append(
-    createElement('span', { className: 'stat-item' }, [`📄 ${stats.docCount ?? 0} docs`]),
-    createElement('span', { className: 'stat-item' }, [`🧩 ${stats.chunkCount ?? 0} chunks`]),
-    createElement('span', { className: 'stat-item' }, [`💾 ${formatBytes(stats.storageBytes ?? 0)}`]),
+    createElement('span', { className: 'stat-item' }, [`📄 ${t('stats.docs', { count: stats.docCount ?? 0 })}`]),
+    createElement('span', { className: 'stat-item' }, [`🧩 ${t('stats.chunks', { count: stats.chunkCount ?? 0 })}`]),
+    createElement('span', { className: 'stat-item' }, [`💾 ${t('stats.storage', { size: formatBytes(stats.storageBytes ?? 0) })}`]),
   );
 }
 

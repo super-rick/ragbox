@@ -121,8 +121,16 @@ export async function semanticSearch(query, kbId, options = {}) {
   if (chunks.length === 0) return [];
 
   const scored = [];
+  let mismatchedChunks = 0;
   for (const chunk of chunks) {
     if (!chunk.embedding) continue;
+    // Dimension guard: stored vectors from a different embedding model would produce
+    // NaN scores in cosineSimilarity. Skip them so keyword search keeps working, and
+    // flag so the UI can tell the user to re-index.
+    if (chunk.embedding.length !== queryVec.length) {
+      mismatchedChunks++;
+      continue;
+    }
     const score = cosineSimilarity(queryVec, chunk.embedding);
     if (score >= minScore) {
       scored.push({ chunk, score });
@@ -131,7 +139,9 @@ export async function semanticSearch(query, kbId, options = {}) {
 
   scored.sort((a, b) => b.score - a.score);
   const top = scored.slice(0, topK);
-  return enrichResults(top);
+  const results = await enrichResults(top);
+  if (mismatchedChunks > 0) results.warning = 'model_changed';
+  return results;
 }
 
 // ─── Hybrid Search ───────────────────────────────────────────────
@@ -154,15 +164,20 @@ export async function hybridSearch(query, kbId, options = {}) {
 
   // Semantic search (if model available)
   let semanticResults = [];
+  let semanticWarning = null;
   if (isModelReady()) {
     try {
       semanticResults = await semanticSearch(query, kbId, { topK: topK * 2 });
+      semanticWarning = semanticResults.warning || null;
     } catch {
       // Model failed — keyword only is fine
     }
   }
 
-  return fuseResults(keywordResults, semanticResults, blend, topK);
+  const results = fuseResults(keywordResults, semanticResults, blend, topK);
+  // Surface a model-change warning even when semantic results are empty (keyword fallback).
+  if (semanticWarning) results.warning = semanticWarning;
+  return results;
 }
 
 /**

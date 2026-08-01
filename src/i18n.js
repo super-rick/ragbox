@@ -2,6 +2,8 @@
  * Internationalization — simple key-value lookup, no framework.
  */
 
+import { state } from './state.js';
+
 const translations = {
   'en': {
     // General
@@ -25,10 +27,15 @@ const translations = {
     'search.empty.desc': 'Drop PDF, TXT, or MD files below to get started.',
     'search.no_results': 'No results found for "{query}". Try different keywords.',
     'search.results_count': 'Found {count} results',
+    'search.model_changed': 'The embedding model changed after these documents were indexed — semantic search is limited for them. Re-ingest them to re-index.',
 
     // Drop zone
     'dropzone.text': 'Drop documents here, or click to select',
-    'dropzone.hint': 'Supports PDF, TXT, MD, DOCX, EPUB',
+    'dropzone.hint': 'Supports PDF, TXT, MD',
+
+    // Q&A
+    'qa.toggle': 'Ask AI',
+    'qa.placeholder': 'Ask a question about your documents...',
 
     // Ingestion
     'ingestion.extracting': 'Extracting text',
@@ -38,6 +45,7 @@ const translations = {
     'ingestion.complete': 'Ingestion complete',
     'ingestion.error': 'Error processing {name}',
     'ingestion.progress': '{current}/{total}',
+    'ingestion.unsupported_format': '{ext} files are not supported yet. Supported: PDF, TXT, MD',
 
     // Model
     'model.downloading': 'Downloading embedding model (~23MB)',
@@ -99,10 +107,15 @@ const translations = {
     'search.empty.desc': '拖入 PDF、TXT 或 MD 文件开始使用。',
     'search.no_results': '未找到 "{query}" 的相关结果。尝试换个关键词。',
     'search.results_count': '找到 {count} 个结果',
+    'search.model_changed': '嵌入模型已更改 — 旧文档的语义搜索受限。请重新导入文档以重新索引。',
 
     // Drop zone
     'dropzone.text': '拖入文档，或点击选择',
-    'dropzone.hint': '支持 PDF、TXT、MD、DOCX、EPUB',
+    'dropzone.hint': '支持 PDF、TXT、MD',
+
+    // Q&A
+    'qa.toggle': 'AI 问答',
+    'qa.placeholder': '询问文档相关问题...',
 
     // Ingestion
     'ingestion.extracting': '提取文本中',
@@ -112,6 +125,7 @@ const translations = {
     'ingestion.complete': '处理完成',
     'ingestion.error': '处理 {name} 时出错',
     'ingestion.progress': '{current}/{total}',
+    'ingestion.unsupported_format': '暂不支持 {ext} 文件。支持：PDF、TXT、MD',
 
     // Model
     'model.downloading': '下载嵌入模型中（约 23MB）',
@@ -169,6 +183,8 @@ export function setLocale(locale) {
     currentLocale = locale;
     localStorage.setItem('rag-locale', locale);
     document.documentElement.lang = locale === 'zh-CN' ? 'zh-CN' : 'en';
+    // Keep shared state in sync so formatDate & other state-readers use the new locale.
+    state.set('locale', locale);
   }
 }
 
