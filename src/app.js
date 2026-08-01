@@ -506,6 +506,21 @@ async function handleFiles(files) {
 
   if (validFiles.length === 0) return;
 
+  // Dedup: skip files already present in this KB (same name + size, including
+  // files still queued) — re-uploading otherwise duplicates docs + chunks.
+  const existing = await listDocuments(kbId);
+  const newFiles = [];
+  for (const file of validFiles) {
+    const dup = existing.some((d) => d.name === file.name && d.size === file.size)
+      || ingestionQueue.some((item) => item.kbId === kbId && item.file.name === file.name && item.file.size === file.size);
+    if (dup) {
+      showToast(t('ingestion.duplicate', { name: file.name }), 'warning');
+    } else {
+      newFiles.push(file);
+    }
+  }
+  if (newFiles.length === 0) return;
+
   // Start model init in background (non-blocking for ingestion)
   if (!isModelReady() && state.get('modelStatus') === 'idle') {
     initModel({
@@ -522,7 +537,7 @@ async function handleFiles(files) {
 
   // Add to queue and process — each file carries its own target KB, so files
   // dropped after switching KBs route to the correct (new) KB, not the old one.
-  ingestionQueue.push(...validFiles.map((file) => ({ file, kbId })));
+  ingestionQueue.push(...newFiles.map((file) => ({ file, kbId })));
   if (!isIngesting) {
     processIngestionQueue();
   }

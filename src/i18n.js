@@ -49,6 +49,7 @@ const translations = {
     'ingestion.failed': 'Failed to process {count} file(s).',
     'ingestion.partial': '{succeeded} ingested, {failed} failed.',
     'ingestion.backfilled': 'Embedded {count} previously text-only chunks.',
+    'ingestion.duplicate': '{name} is already in this knowledge base. Skipped.',
 
     // Model
     'model.downloading': 'Downloading embedding model (~23MB)',
@@ -233,6 +234,7 @@ const translations = {
     'ingestion.failed': '有 {count} 个文件处理失败。',
     'ingestion.partial': '{succeeded} 个成功，{failed} 个失败。',
     'ingestion.backfilled': '已为 {count} 个纯文本分块生成向量。',
+    'ingestion.duplicate': '「{name}」已在该知识库中，已跳过。',
 
     // Model
     'model.downloading': '下载嵌入模型中（约 23MB）',
