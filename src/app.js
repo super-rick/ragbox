@@ -150,6 +150,14 @@ function applyLocale() {
   const backupDesc = $('#backup-desc');
   if (backupDesc) backupDesc.textContent = t('backup.desc');
 
+  // Help modal
+  const helpToggle = $('#help-toggle');
+  if (helpToggle) helpToggle.title = t('help.title');
+  const helpTitle = $('#help-title');
+  if (helpTitle) helpTitle.textContent = '❓ ' + t('help.title');
+  const helpPage = document.getElementById('help-page');
+  if (helpPage && helpPage.classList.contains('active')) renderHelp();
+
   // If the settings dialog is open, refresh its dynamic status in the new locale.
   const settingsPage = document.getElementById('settings-page');
   if (settingsPage && settingsPage.classList.contains('active')) {
@@ -294,6 +302,12 @@ function setupEventListeners() {
   $('#settings-close').addEventListener('click', hideSettingsPage);
   document.getElementById('settings-page').addEventListener('click', (e) => {
     if (e.target.id === 'settings-page') hideSettingsPage();
+  });
+  // Help floating modal
+  $('#help-toggle').addEventListener('click', showHelpPage);
+  $('#help-close').addEventListener('click', hideHelpPage);
+  document.getElementById('help-page').addEventListener('click', (e) => {
+    if (e.target.id === 'help-page') hideHelpPage();
   });
   // Settings tab switching
   document.querySelectorAll('.settings-tab').forEach(tab => {
@@ -593,7 +607,9 @@ async function backfillNullEmbeddings() {
       const nullChunks = chunks.filter((c) => c.embedding == null);
       if (nullChunks.length === 0) continue;
 
-      const BATCH = 64;
+      // Small batches so each WASM inference pass doesn't block the UI too long,
+      // and yield between batches so the page stays responsive during backfill.
+      const BATCH = 16;
       for (let i = 0; i < nullChunks.length; i += BATCH) {
         const batch = nullChunks.slice(i, i + BATCH);
         let vecs;
@@ -609,6 +625,7 @@ async function backfillNullEmbeddings() {
             backfilled++;
           }
         }
+        await new Promise((r) => setTimeout(r, 0));
       }
       touchedKBs.add(kb.id);
     }
@@ -1125,6 +1142,42 @@ function showSettingsPage() {
 
 function hideSettingsPage() {
   document.getElementById('settings-page').classList.remove('active');
+}
+
+// ─── Help Modal ─────────────────────────────────────────────────
+
+/**
+ * Render the localized help content into the help modal.
+ * Sections come from i18n keys; each body is a newline-separated bullet list.
+ */
+function renderHelp() {
+  const container = $('#help-content');
+  if (!container) return;
+  container.innerHTML = '';
+  const sections = [
+    { title: t('help.quick_title'), body: t('help.quick') },
+    { title: t('help.search_title'), body: t('help.search') },
+    { title: t('help.qa_title'), body: t('help.qa') },
+    { title: t('help.kb_title'), body: t('help.kb') },
+    { title: t('help.privacy_title'), body: t('help.privacy') },
+  ];
+  for (const s of sections) {
+    container.append(createElement('h4', {}, [s.title]));
+    const ul = createElement('ul', {});
+    for (const line of s.body.split('\n')) {
+      ul.append(createElement('li', {}, [line]));
+    }
+    container.append(ul);
+  }
+}
+
+function showHelpPage() {
+  renderHelp();
+  document.getElementById('help-page').classList.add('active');
+}
+
+function hideHelpPage() {
+  document.getElementById('help-page').classList.remove('active');
 }
 
 async function renderSettingsPage() {

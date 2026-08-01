@@ -108,7 +108,7 @@ test('settings opens as a modal and search results survive close', async ({ page
   await page.waitForTimeout(300);
   const resultsAreaDisplay = await page.locator('#results-area').evaluate((el) => getComputedStyle(el).display);
   expect(resultsAreaDisplay).not.toBe('none');
-  await expect(page.locator('.settings-dialog')).toBeVisible();
+  await expect(page.locator('#settings-page .settings-dialog')).toBeVisible();
 
   // Close via ✕ — results preserved
   await page.click('#settings-close');

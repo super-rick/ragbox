@@ -16,7 +16,10 @@ let modelName = 'Xenova/all-MiniLM-L6-v2';
 // freeze the page. Fetch the model files from a mirror first, falling back to
 // the official host. Each attempt has a timeout so a hanging host can't block.
 const MODEL_REMOTE_HOSTS = ['https://hf-mirror.com/', 'https://huggingface.co/'];
-const MODEL_LOAD_TIMEOUT = 45_000; // bounded so a hanging host can't freeze the page long
+// Stall watchdog: a fixed whole-download timeout would cut off slow-but-working
+// downloads, so the timer is reset on every progress event and only fires when a
+// host stops sending data entirely.
+const MODEL_IDLE_TIMEOUT = 25_000;
 
 // jsdelivr's +esm bundle can be unreachable/flaky on some networks, so try
 // unpkg's real dist file as a fallback. import() is cached per-URL, so each
@@ -40,11 +43,42 @@ async function loadTransformers(remoteHost) {
   throw lastErr || new Error('Failed to load Transformers.js');
 }
 
-function withTimeout(promise, ms, label) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error(label + ' timed out')), ms)),
-  ]);
+/**
+ * Load the model via Transformers.js with a stall watchdog.
+ * The idle timer resets on every progress event, so a slow-but-progressing
+ * download is never cut off; only a host that stops sending data for
+ * MODEL_IDLE_TIMEOUT is treated as stalled.
+ */
+async function loadModel(remoteHost, onProgress) {
+  const transformers = await loadTransformers(remoteHost);
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const fail = (msg) => { if (!done) { done = true; reject(new Error(msg)); } };
+    let idleTimer = setTimeout(() => fail('Model download stalled on ' + remoteHost), MODEL_IDLE_TIMEOUT);
+
+    transformers.pipeline('feature-extraction', modelName, {
+      progress_callback: (info) => {
+        clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => fail('Model download stalled on ' + remoteHost), MODEL_IDLE_TIMEOUT);
+        if (info.status === 'progress') {
+          const progress = Math.round((info.loaded / info.total) * 100);
+          state.set('modelProgress', Math.min(progress, 99));
+          onProgress?.({
+            status: 'downloading',
+            progress: info.loaded / info.total,
+            loaded: info.loaded,
+            total: info.total,
+          });
+        } else if (info.status === 'done') {
+          state.set('modelProgress', 100);
+        }
+      },
+    }).then((ext) => {
+      if (!done) { done = true; clearTimeout(idleTimer); resolve(ext); }
+    }).catch((err) => {
+      if (!done) { done = true; clearTimeout(idleTimer); reject(err); }
+    });
+  });
 }
 
 /**
@@ -79,27 +113,7 @@ export async function initModel(opts = {}) {
     let lastErr = null;
     for (const remoteHost of MODEL_REMOTE_HOSTS) {
       try {
-        const transformers = await loadTransformers(remoteHost);
-        extractor = await withTimeout(
-          transformers.pipeline('feature-extraction', modelName, {
-            progress_callback: (info) => {
-              if (info.status === 'progress') {
-                const progress = Math.round((info.loaded / info.total) * 100);
-                state.set('modelProgress', Math.min(progress, 99));
-                onProgress?.({
-                  status: 'downloading',
-                  progress: info.loaded / info.total,
-                  loaded: info.loaded,
-                  total: info.total,
-                });
-              } else if (info.status === 'done') {
-                state.set('modelProgress', 100);
-              }
-            },
-          }),
-          MODEL_LOAD_TIMEOUT,
-          'Model load on ' + remoteHost
-        );
+        extractor = await loadModel(remoteHost, onProgress);
         state.set('modelStatus', 'ready');
         state.set('modelProgress', 100);
         onProgress?.({ status: 'ready' });

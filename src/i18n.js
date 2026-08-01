@@ -169,6 +169,19 @@ const translations = {
     'backup.imported': 'Imported {kbs} KBs, {docs} docs, {chunks} chunks.',
     'backup.import_failed': 'Import failed: {msg}',
 
+    // Help
+    'help.title': 'Help',
+    'help.quick_title': 'Quick Start',
+    'help.quick': 'Drag PDF, TXT, or MD files into the page to build your knowledge base.\nType in the search box — keyword and semantic search run instantly.\nEnable "Ask AI" for document-grounded Q&A (requires WebGPU).',
+    'help.search_title': 'Search',
+    'help.search': 'Hybrid keyword + semantic search.\nChinese single characters and short queries are supported.\nClick a document name in the results to open the full source text.',
+    'help.qa_title': 'RAG Q&A',
+    'help.qa': 'First use downloads a ~500MB model and requires WebGPU (Chrome 113+).\nAnswers cite sources from your documents.\nUse the Stop button to abort a generation.',
+    'help.kb_title': 'Knowledge Bases',
+    'help.kb': 'Organize documents into separate knowledge bases; search each independently.\nRe-uploading the same file is skipped automatically.',
+    'help.privacy_title': 'Backup & Privacy',
+    'help.privacy': 'Export all data (including vectors) to a .ragbak file in Settings → Backup.\nEverything stays in your browser — nothing is ever uploaded to a server.',
+
     // Model download overlay
     'overlay.title': 'Loading AI Model',
     'overlay.desc': 'Downloading embedding model (~23MB).\nFirst-time setup, one-time only. Cached for offline use.',
@@ -344,6 +357,19 @@ const translations = {
     'backup.exported': '已导出 {kbs} 个知识库、{docs} 个文档、{chunks} 个分块。',
     'backup.imported': '已导入 {kbs} 个知识库、{docs} 个文档、{chunks} 个分块。',
     'backup.import_failed': '导入失败：{msg}',
+
+    // Help
+    'help.title': '帮助',
+    'help.quick_title': '快速开始',
+    'help.quick': '拖入 PDF、TXT 或 MD 文件即可建立知识库。\n在搜索框输入内容，关键词与语义搜索立即运行。\n开启「AI 问答」可基于文档提问（需 WebGPU）。',
+    'help.search_title': '搜索',
+    'help.search': '混合关键词 + 语义搜索。\n支持中文单字与短查询。\n点击结果中的文档名可查看完整原文。',
+    'help.qa_title': 'RAG 问答',
+    'help.qa': '首次使用需下载约 500MB 模型，需要 WebGPU（Chrome 113+）。\n回答会标注来源文档。\n可用停止按钮中断生成。',
+    'help.kb_title': '知识库',
+    'help.kb': '文档可分库组织，各库独立检索。\n重复上传同一文件会被自动跳过。',
+    'help.privacy_title': '备份与隐私',
+    'help.privacy': '在「设置 → 备份」中可将全部数据（含向量）导出为 .ragbak。\n所有数据仅保存在浏览器中，绝不会上传到任何服务器。',
 
     // Model download overlay
     'overlay.title': '正在加载 AI 模型',
