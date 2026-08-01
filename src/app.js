@@ -11,7 +11,7 @@ import { openDB, createKB, listKBs, getKB, updateKB, deleteKB, getKBStats,
          addDocument, updateDocument, listDocuments, getDocument, deleteDocument,
          addChunks, getChunksByKB, getStorageEstimate } from './db.js';
 import { chunkText, estimateTokens } from './chunker.js';
-import { extractPDFText, getPageCount } from './pdf-extractor.js';
+import { extractPDFText } from './pdf-extractor.js';
 import { readFileAsArrayBuffer, readFileAsText, setupDragDrop, setupFileInput,
          validateFile, stripMarkdown } from './file-handler.js';
 import { initModel, embed, embedSingle, isModelReady, getModelInfo } from './embedder.js';
@@ -23,6 +23,21 @@ import {
   getAvailableEmbeddingModels, getAvailableQAModels,
   checkModelCache, getCacheInfo, clearModelCache,
 } from './models.js';
+
+// ─── Embedding model selection ──────────────────────────────────
+
+const EMBED_MODEL_KEY = 'rag-embed-model';
+const DEFAULT_EMBED_MODEL = 'Xenova/all-MiniLM-L6-v2';
+
+/**
+ * Active embedding model, persisted across sessions. Auto-init (ingestion/search)
+ * uses this so a model chosen in Settings isn't silently overridden by the default.
+ */
+function getSavedEmbedModelId() {
+  const saved = localStorage.getItem(EMBED_MODEL_KEY);
+  const available = getAvailableEmbeddingModels().map(m => m.id);
+  return saved && available.includes(saved) ? saved : DEFAULT_EMBED_MODEL;
+}
 
 // ─── Initialization ──────────────────────────────────────────────
 
@@ -181,6 +196,11 @@ function setupEventListeners() {
       showSettingsPage();
     }
   });
+  // Settings floating modal: close via ✕ or clicking the backdrop
+  $('#settings-close').addEventListener('click', hideSettingsPage);
+  document.getElementById('settings-page').addEventListener('click', (e) => {
+    if (e.target.id === 'settings-page') hideSettingsPage();
+  });
   // Settings tab switching
   document.querySelectorAll('.settings-tab').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -219,10 +239,13 @@ function toggleQAMode() {
 
     // Ensure embedding model is loaded (needed for search behind QA)
     if (!isModelReady()) {
-      initModel((progress) => {
-        if (progress.status === 'downloading') {
-          state.set('modelProgress', Math.round(progress.progress * 100));
-        }
+      initModel({
+        modelId: getSavedEmbedModelId(),
+        onProgress: (progress) => {
+          if (progress.status === 'downloading') {
+            state.set('modelProgress', Math.round(progress.progress * 100));
+          }
+        },
       }).catch(() => {});
     }
 
@@ -364,10 +387,13 @@ async function handleFiles(files) {
 
   // Start model init in background (non-blocking for ingestion)
   if (!isModelReady() && state.get('modelStatus') === 'idle') {
-    initModel((progress) => {
-      if (progress.status === 'downloading') {
-        state.set('modelProgress', Math.round(progress.progress * 100));
-      }
+    initModel({
+      modelId: getSavedEmbedModelId(),
+      onProgress: (progress) => {
+        if (progress.status === 'downloading') {
+          state.set('modelProgress', Math.round(progress.progress * 100));
+        }
+      },
     }).catch(() => {
       console.warn('Model failed to load — will embed chunks later');
     });
@@ -386,14 +412,26 @@ async function processIngestionQueue(kbId) {
   progressContainer.classList.add('active');
   progressContainer.innerHTML = '';
 
+  let succeeded = 0;
+  let failed = 0;
+
   while (ingestionQueue.length > 0) {
     const file = ingestionQueue.shift();
-    await processSingleFile(file, kbId, progressContainer);
+    const ok = await processSingleFile(file, kbId, progressContainer);
+    ok ? succeeded++ : failed++;
   }
 
   isIngesting = false;
   progressContainer.classList.remove('active');
-  showToast(t('ingestion.complete'), 'success');
+
+  if (failed === 0) {
+    showToast(t('ingestion.complete'), 'success');
+  } else if (succeeded === 0) {
+    showToast(t('ingestion.failed', { count: failed }), 'error');
+  } else {
+    showToast(t('ingestion.partial', { succeeded, failed }), 'warning');
+  }
+
   await refreshDocList();
   await refreshStats();
 }
@@ -416,11 +454,13 @@ async function processSingleFile(file, kbId, progressContainer) {
 
     if (ext === 'pdf') {
       const arrayBuf = await readFileAsArrayBuffer(file);
-      pageCount = await getPageCount(arrayBuf);
+      // Single parse: PDF.js detaches the ArrayBuffer on first getDocument, so
+      // pageCount must come from the same call (see pdf-extractor.js).
       const result = await extractPDFText(arrayBuf, (progress) => {
         statusText.textContent = `${t('ingestion.extracting')} (${progress.current}/${progress.total})`;
       });
       text = result.fullText;
+      pageCount = result.pageCount;
     } else if (ext === 'txt') {
       text = await readFileAsText(file);
     } else if (ext === 'md') {
@@ -431,8 +471,7 @@ async function processSingleFile(file, kbId, progressContainer) {
 
     if (!text || text.trim().length < 10) {
       statusText.textContent = '⚠️ Too little text extracted';
-      // But still continue to avoid letting the error block the queue
-      return;
+      return false;
     }
 
     // ─── 2. Chunk text ──────────────────────────────────────
@@ -484,10 +523,12 @@ async function processSingleFile(file, kbId, progressContainer) {
     await updateKB(kbId, { chunkCount: stats.chunkCount, storageBytes: stats.storageBytes });
 
     statusText.textContent = '✅ ' + chunks.length + ' chunks';
+    return true;
 
   } catch (err) {
     console.error('Ingestion error for', file.name, err);
     statusText.textContent = `❌ ${err.message || 'Error'}`;
+    return false;
   }
 }
 
@@ -528,7 +569,7 @@ async function performSearch(query) {
   // Try to init model in background (non-blocking)
   // search works via keyword even without model
   if (!isModelReady() && state.get('modelStatus') === 'idle') {
-    initModel().catch(() => {}); // fire-and-forget; model loads when it loads
+    initModel({ modelId: getSavedEmbedModelId() }).catch(() => {}); // fire-and-forget; model loads when it loads
   }
 
   // Show brief loading for search
@@ -819,19 +860,14 @@ async function refreshStats() {
 // ─── Settings / Model Management ─────────────────────────────────
 
 function showSettingsPage() {
-  document.getElementById('results-area').style.display = 'none';
-  document.getElementById('search-bar').style.display = 'none';
-  document.getElementById('ingestion-progress').style.display = 'none';
-  document.getElementById('qa-panel').style.display = 'none';
+  // Floating modal — the main content (search results) stays intact behind it,
+  // so opening/closing settings can never wipe the current results.
   document.getElementById('settings-page').classList.add('active');
-
   renderSettingsPage();
 }
 
 function hideSettingsPage() {
   document.getElementById('settings-page').classList.remove('active');
-  document.getElementById('results-area').style.display = 'flex';
-  document.getElementById('search-bar').style.display = 'block';
 }
 
 async function renderSettingsPage() {
@@ -913,6 +949,7 @@ async function renderSettingsPage() {
   // ─── Model selector change → update card + cache ─────
   embedSelect.onchange = () => {
     const selected = embedSelect.value;
+    localStorage.setItem(EMBED_MODEL_KEY, selected);
     updateEmbeddingCardFromId(selected);
     updateEmbedCacheStatus(selected);
   };

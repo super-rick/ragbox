@@ -46,6 +46,8 @@ const translations = {
     'ingestion.error': 'Error processing {name}',
     'ingestion.progress': '{current}/{total}',
     'ingestion.unsupported_format': '{ext} files are not supported yet. Supported: PDF, TXT, MD',
+    'ingestion.failed': 'Failed to process {count} file(s).',
+    'ingestion.partial': '{succeeded} ingested, {failed} failed.',
 
     // Model
     'model.downloading': 'Downloading embedding model (~23MB)',
@@ -126,6 +128,8 @@ const translations = {
     'ingestion.error': '处理 {name} 时出错',
     'ingestion.progress': '{current}/{total}',
     'ingestion.unsupported_format': '暂不支持 {ext} 文件。支持：PDF、TXT、MD',
+    'ingestion.failed': '有 {count} 个文件处理失败。',
+    'ingestion.partial': '{succeeded} 个成功，{failed} 个失败。',
 
     // Model
     'model.downloading': '下载嵌入模型中（约 23MB）',

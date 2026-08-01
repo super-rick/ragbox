@@ -6,14 +6,19 @@
 
 let pdfjsLib = null;
 
+/**
+ * PDF.js is vendored locally (vendor/pdfjs/) — no CDN dependency, so extraction
+ * works offline and isn't affected by CDN slowness/blocking. The +esm bundle is
+ * self-contained; the worker is served as a static file.
+ */
+const PDFJS_WORKER = '/vendor/pdfjs/pdf.worker.min.mjs';
+
 async function ensurePDFJS() {
   if (pdfjsLib) return pdfjsLib;
 
-  // Load PDF.js from CDN (dynamic import for lazy loading)
-  pdfjsLib = await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@4.8.69/+esm');
-
-  // Set worker (use CDN worker)
-  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.8.69/build/pdf.worker.min.mjs';
+  // Import the vendored self-contained ESM bundle (345KB, no external imports).
+  pdfjsLib = await import('../vendor/pdfjs/pdfjs.mjs');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
 
   return pdfjsLib;
 }
@@ -22,7 +27,7 @@ async function ensurePDFJS() {
  * Extract text from a PDF.
  * @param {ArrayBuffer} arrayBuffer - PDF file data
  * @param {function} onProgress - ({ current, total }) => void
- * @returns {Promise<{fullText: string, pages: Array<{pageNumber: number, text: string}>>}
+ * @returns {Promise<{fullText: string, pages: Array<{pageNumber: number, text: string}>, pageCount: number}>}
  */
 export async function extractPDFText(arrayBuffer, onProgress) {
   const pdfjs = await ensurePDFJS();
@@ -56,7 +61,10 @@ export async function extractPDFText(arrayBuffer, onProgress) {
     onProgress?.({ current: i, total: totalPages });
   }
 
-  return { fullText: fullText.trim(), pages };
+  // pageCount comes from the same getDocument handle — callers must NOT parse the
+  // same ArrayBuffer a second time (PDF.js detaches it, throwing
+  // "Cannot perform Construct on a detached ArrayBuffer").
+  return { fullText: fullText.trim(), pages, pageCount: totalPages };
 }
 
 /**

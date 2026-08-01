@@ -32,7 +32,13 @@ export async function initModel(opts = {}) {
     modelName = newModelId;
   }
 
-  if (extractor) return;
+  if (extractor) {
+    // Requested model is already loaded. Report ready so the UI settles instead
+    // of sitting at a fake "downloading" state.
+    state.set('modelStatus', 'ready');
+    onProgress?.({ status: 'ready' });
+    return;
+  }
 
   try {
     state.set('modelStatus', 'downloading');
