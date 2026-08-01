@@ -10,24 +10,37 @@
  * After splitting, merge small adjacent chunks with overlap.
  */
 
-const DEFAULT_CHUNK_SIZE = 512;   // characters (not tokens — estimated ~1.3 chars/token for English/Chinese)
-const DEFAULT_OVERLAP = 50;       // ~10% of chunkSize
+const DEFAULT_CHUNK_SIZE = 512;   // characters for English/mixed text
+// all-MiniLM-L6-v2 truncates sequences at 256 tokens. 512 CJK chars ≈ 512+ tokens
+// at ~1 token/char, so CJK-heavy text must use a smaller chunk budget or its tail
+// is silently dropped at embed time (keyword still finds it, semantic doesn't).
+const MAX_TOKENS = 240;           // safe margin under the 256-token window
 
 // Chinese and English sentence-ending characters
 const SENTENCE_SEPARATORS = ['。', '！', '？', '.', '!', '?', '\n'];
 const CLAUSE_SEPARATORS = ['；', '，', ';', ',', '：', ':', '）', '）', ')', '」', '】', '》'];
 
 /**
- * Chunk text into overlapping segments.
+ * Chunk text into overlapping segments, sized to stay within the embedder's
+ * token window even for CJK-heavy text.
  * @param {string} text - Raw text to split
- * @param {object} options - { chunkSize, overlap, pageNumber }
+ * @param {object} options - { chunkSize, overlap, pageNumber, maxTokens }
  * @returns {Array<{text: string, metadata: {charStart: number, charEnd: number, pageNumber: number|null}}>}
  */
 export function chunkText(text, options = {}) {
-  const chunkSize = options.chunkSize || DEFAULT_CHUNK_SIZE;
+  const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  // Token-aware sizing: pure CJK ~1 token/char, other text ~4 chars/token.
+  const maxTokens = options.maxTokens || MAX_TOKENS;
+  const cjkRatio = estimateCJKRatio(normalized);
+  const avgCharsPerToken = cjkRatio * 1 + (1 - cjkRatio) * 4;
+  const charBudget = Math.max(64, Math.floor(maxTokens * avgCharsPerToken));
+  const requested = options.chunkSize || DEFAULT_CHUNK_SIZE;
+  // chunkSize + overlap ≈ charBudget, so even a merged chunk stays within
+  // maxTokens (English is unaffected: its charBudget exceeds DEFAULT_CHUNK_SIZE).
+  const chunkSize = Math.max(1, Math.min(requested, Math.floor(charBudget / 1.1)));
   const overlap = options.overlap !== undefined ? options.overlap : Math.round(chunkSize * 0.1);
   const pageNumber = options.pageNumber ?? null;
-  const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
   const rawChunks = splitRecursive(normalized, chunkSize, 0);
   const merged = mergeWithOverlap(rawChunks, chunkSize, overlap);
@@ -35,6 +48,12 @@ export function chunkText(text, options = {}) {
     c.metadata.pageNumber = pageNumber;
   }
   return merged;
+}
+
+/** Fraction of CJK characters in text (drives the token-safe chunk size). */
+function estimateCJKRatio(text) {
+  const cjk = (text.match(/[一-鿿]/g) || []).length;
+  return cjk / Math.max(1, text.length);
 }
 
 /**
