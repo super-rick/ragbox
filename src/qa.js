@@ -13,6 +13,7 @@
 
 import { hybridSearch } from './search.js';
 import { state } from './state.js';
+import { t } from './i18n.js';
 
 let engine = null;
 let engineStatus = 'idle'; // idle | loading | ready | error
@@ -129,27 +130,19 @@ export async function* askQuestion(question, kbId) {
     // 1. Search for relevant chunks (fetch more for merging)
     const results = await hybridSearch(question, kbId, { topK: MAX_CONTEXT_CHUNKS_SEARCH, blend: 0.6 });
 
-    if (results.length === 0) {
-      yield 'I couldn\'t find any relevant information in your knowledge base to answer this question.';
+    // User aborted while the search was still running — don't leave an empty bubble.
+    if (signal.aborted) {
+      yield t('qa.stopped');
       return;
     }
 
-    // 2. Merge consecutive chunks from the same document
-    const merged = [];
-    for (const r of results) {
-      const last = merged[merged.length - 1];
-      if (last && last.docId === r.docId) {
-        // Same document — merge text if chunks are near-consecutive
-        const gap = r.charStart - last.charEnd;
-        if (gap >= 0 && gap < 200) {
-          last.text += '\n' + r.text;
-          last.charEnd = r.charEnd;
-          continue;
-        }
-      }
-      merged.push({ ...r }); // clone to avoid mutation
-      if (merged.length >= MAX_CONTEXT_CHUNKS * 2) break;
+    if (results.length === 0) {
+      yield t('qa.no_info');
+      return;
     }
+
+    // 2. Merge consecutive chunks from the same document.
+    const merged = mergeConsecutiveChunks(results, MAX_CONTEXT_CHUNKS * 2);
 
     // 3. Take top N merged blocks
     const contextBlocks = merged.slice(0, MAX_CONTEXT_CHUNKS);
@@ -191,7 +184,7 @@ export async function* askQuestion(question, kbId) {
 
     for await (const chunk of chunks) {
       if (signal.aborted) {
-        yield '\n\n⏹️ Response stopped.';
+        yield '\n\n' + t('qa.stopped');
         return;
       }
       const content = chunk.choices?.[0]?.delta?.content;
@@ -199,18 +192,55 @@ export async function* askQuestion(question, kbId) {
         yield content;
       }
     }
+    // interruptGenerate() ends the stream cleanly; still signal the stop.
+    if (signal.aborted) {
+      yield '\n\n' + t('qa.stopped');
+    }
   } finally {
     currentAbortController = null;
   }
 }
 
 /**
+ * Merge consecutive same-document chunks into fuller context blocks.
+ * Chunk overlap makes the next chunk's charStart fall BEFORE the previous
+ * charEnd (negative gap), so a bounded negative gap is accepted instead of
+ * requiring gap >= 0 (which made the merge a no-op). Same page is required so
+ * per-page offsets (which restart at 0) never look spuriously consecutive.
+ * @param {Array} results - ranked search results
+ * @param {number} maxBlocks - stop collecting after this many blocks
+ */
+export function mergeConsecutiveChunks(results, maxBlocks) {
+  const merged = [];
+  for (const r of results) {
+    const last = merged[merged.length - 1];
+    if (last && last.docId === r.docId && last.pageNumber === r.pageNumber) {
+      const gap = r.charStart - last.charEnd;
+      if (gap > -300 && gap < 200) {
+        last.text += '\n' + r.text;
+        last.charEnd = r.charEnd;
+        continue;
+      }
+    }
+    merged.push({ ...r }); // clone to avoid mutation
+    if (merged.length >= maxBlocks) break;
+  }
+  return merged;
+}
+
+/**
  * Abort the current answer generation.
+ * Also calls engine.interruptGenerate() so WebLLM actually stops computing,
+ * not just stops streaming — otherwise the model keeps generating in the
+ * background and the next question can queue behind it.
  */
 export function abortAnswer() {
   if (currentAbortController) {
     currentAbortController.abort();
     currentAbortController = null;
+  }
+  if (engine && typeof engine.interruptGenerate === 'function') {
+    engine.interruptGenerate();
   }
 }
 

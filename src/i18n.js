@@ -104,6 +104,8 @@ const translations = {
     'qa.init': 'Initializing AI model...',
     'qa.init_failed': 'Failed to initialize AI model: {msg}',
     'qa.no_answer': 'Failed to get answer',
+    'qa.no_info': "I couldn't find any relevant information in your knowledge base to answer this question.",
+    'qa.stopped': '⏹️ Response stopped.',
 
     // KB / Doc management
     'kb.required': 'Please create or select a knowledge base first.',
@@ -276,6 +278,8 @@ const translations = {
     'qa.init': '正在初始化 AI 模型...',
     'qa.init_failed': 'AI 模型初始化失败：{msg}',
     'qa.no_answer': '获取回答失败',
+    'qa.no_info': '在知识库中未找到相关信息来回答该问题。',
+    'qa.stopped': '⏹️ 已停止回答。',
 
     // KB / Doc management
     'kb.required': '请先创建或选择知识库。',
