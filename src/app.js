@@ -9,7 +9,8 @@ import { $, $$, createElement, showToast, showModal, renderStats, renderEmptySta
 import { t, setLocale, getLocale } from './i18n.js';
 import { openDB, createKB, listKBs, getKB, updateKB, deleteKB, getKBStats,
          addDocument, updateDocument, listDocuments, getDocument, deleteDocument,
-         addChunks, getChunksByKB, getStorageEstimate, getDocumentText } from './db.js';
+         addChunks, getChunksByKB, getStorageEstimate, getDocumentText,
+         updateChunkEmbedding } from './db.js';
 import { chunkText, estimateTokens } from './chunker.js';
 import { extractPDFText } from './pdf-extractor.js';
 import { readFileAsArrayBuffer, readFileAsText, setupDragDrop, setupFileInput,
@@ -185,6 +186,11 @@ function setupEventListeners() {
     } else {
       hideSettingsPage();
     }
+  });
+
+  // Backfill chunks stored without embeddings once the model is ready.
+  state.subscribe('modelStatus', (status) => {
+    if (status === 'ready') backfillNullEmbeddings();
   });
 
   // Settings button → toggle settings page
@@ -399,14 +405,15 @@ async function handleFiles(files) {
     });
   }
 
-  // Add to queue and process
-  ingestionQueue.push(...validFiles);
+  // Add to queue and process — each file carries its own target KB, so files
+  // dropped after switching KBs route to the correct (new) KB, not the old one.
+  ingestionQueue.push(...validFiles.map((file) => ({ file, kbId })));
   if (!isIngesting) {
-    processIngestionQueue(kbId);
+    processIngestionQueue();
   }
 }
 
-async function processIngestionQueue(kbId) {
+async function processIngestionQueue() {
   isIngesting = true;
   const progressContainer = $('#ingestion-progress');
   progressContainer.classList.add('active');
@@ -416,8 +423,8 @@ async function processIngestionQueue(kbId) {
   let failed = 0;
 
   while (ingestionQueue.length > 0) {
-    const file = ingestionQueue.shift();
-    const ok = await processSingleFile(file, kbId, progressContainer);
+    const item = ingestionQueue.shift();
+    const ok = await processSingleFile(item.file, item.kbId, progressContainer);
     ok ? succeeded++ : failed++;
   }
 
@@ -434,6 +441,62 @@ async function processIngestionQueue(kbId) {
 
   await refreshDocList();
   await refreshStats();
+}
+
+let isBackfilling = false;
+
+/**
+ * Backfill chunks that were stored without embeddings (the model was still
+ * downloading when they were ingested). Such chunks were silently invisible
+ * to semantic search; this runs whenever the model becomes ready and embeds
+ * them in batches, then refreshes KB stats.
+ */
+async function backfillNullEmbeddings() {
+  if (isBackfilling || !isModelReady()) return;
+  isBackfilling = true;
+  let backfilled = 0;
+  const touchedKBs = new Set();
+  try {
+    const kbs = await listKBs();
+    for (const kb of kbs) {
+      const chunks = await getChunksByKB(kb.id);
+      const nullChunks = chunks.filter((c) => c.embedding == null);
+      if (nullChunks.length === 0) continue;
+
+      const BATCH = 64;
+      for (let i = 0; i < nullChunks.length; i += BATCH) {
+        const batch = nullChunks.slice(i, i + BATCH);
+        let vecs;
+        try {
+          vecs = await embed(batch.map((c) => c.text));
+        } catch (err) {
+          console.warn('Backfill embed failed:', err);
+          break;
+        }
+        for (let j = 0; j < batch.length; j++) {
+          if (vecs && vecs[j]) {
+            await updateChunkEmbedding(batch[j].id, vecs[j]);
+            backfilled++;
+          }
+        }
+      }
+      touchedKBs.add(kb.id);
+    }
+
+    if (backfilled > 0) {
+      for (const kbId of touchedKBs) {
+        const stats = await getKBStats(kbId);
+        await updateKB(kbId, { chunkCount: stats.chunkCount, storageBytes: stats.storageBytes });
+      }
+      showToast(t('ingestion.backfilled', { count: backfilled }), 'success');
+      // Results may now include semantic hits that were missing before.
+      if (lastSearchQuery) performSearch(lastSearchQuery);
+    }
+  } catch (err) {
+    console.warn('Backfill failed:', err);
+  } finally {
+    isBackfilling = false;
+  }
 }
 
 async function processSingleFile(file, kbId, progressContainer) {

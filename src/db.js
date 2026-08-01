@@ -372,6 +372,30 @@ export async function getDocumentText(docId) {
   return { text: chunks.map((c) => c.text).join('\n\n'), pageTexts: null };
 }
 
+/**
+ * Write an embedding back onto an existing chunk (used to backfill chunks
+ * that were stored without vectors while the model was still downloading).
+ */
+export function updateChunkEmbedding(chunkId, embedding) {
+  return runTransaction('chunks', 'readwrite', (store) => {
+    return new Promise((resolve, reject) => {
+      const getReq = store.get(chunkId);
+      getReq.onsuccess = () => {
+        const chunk = getReq.result;
+        if (!chunk) {
+          resolve(false);
+          return;
+        }
+        chunk.embedding = embedding;
+        const putReq = store.put(chunk);
+        putReq.onsuccess = () => resolve(true);
+        putReq.onerror = () => reject(putReq.error);
+      };
+      getReq.onerror = () => reject(getReq.error);
+    });
+  });
+}
+
 export function deleteChunksByDoc(docId) {
   return runTransaction('chunks', 'readwrite', (store) => {
     return new Promise((resolve, reject) => {
