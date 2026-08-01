@@ -147,10 +147,16 @@ function setupEventListeners() {
   // State subscriptions for UI updates
   state.subscribe('currentKBId', async (kbId) => {
     updateSidebarActiveKB(kbId);
+    await refreshDocList();
+    await refreshStats();
     if (kbId) {
-      await refreshDocList();
-      await refreshStats();
       renderSearchResults([]);
+    } else {
+      // No KB selected (e.g. all deleted) — return to the empty home state.
+      const resultsContainer = $('#results-container');
+      if (resultsContainer) resultsContainer.innerHTML = '';
+      const dropZone = $('#drop-zone');
+      if (dropZone) dropZone.style.display = 'block';
     }
   });
 
@@ -853,11 +859,18 @@ async function refreshKBList() {
 
   for (const kb of kbs) {
     const item = createElement('div', { className: 'kb-item', dataset: { kbId: kb.id } }, [
-      createElement('span', {}, ['📚 ' + kb.name]),
+      createElement('span', { className: 'kb-item-name' }, ['📚 ' + kb.name]),
     ]);
     item.addEventListener('click', () => {
       state.set('currentKBId', kb.id);
     });
+
+    const delBtn = createElement('button', { className: 'kb-item-delete', title: 'Delete' }, ['✕']);
+    delBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      handleDeleteKB(kb.id);
+    });
+    item.append(delBtn);
     list.append(item);
   }
 

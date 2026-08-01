@@ -168,24 +168,17 @@ test.describe('KB Management', () => {
   test('deletes a KB and updates the list', async ({ page }) => {
     await createKB(page, 'To Delete');
 
-    // Delete via modal
-    // The plan has a delete function but the current UI doesn't have a delete button for KBs
-    // Let's test via the deleteKB API exposed on the page
-    const result = await page.evaluate(async () => {
-      const mod = await import('./src/db.js');
-      const kbs = await mod.listKBs();
-      if (kbs.length > 0) {
-        await mod.deleteKB(kbs[0].id);
-        return 'deleted';
-      }
-      return 'no_kbs';
-    });
+    // Delete via the sidebar ✕ button, confirming in the modal.
+    // The modal closes immediately; wait for the async delete to finish
+    // (kb-empty becomes visible) before reloading.
+    await page.locator('.kb-item-delete').click();
+    await page.waitForSelector('.modal-dialog');
+    await page.click('.modal-dialog button', { hasText: 'Delete' });
+    await page.waitForSelector('#kb-empty', { state: 'visible' });
 
-    expect(result).toBe('deleted');
-
-    // Reload page to verify
+    // Reload page to verify the deletion persisted
     await page.reload();
-    await page.waitForSelector('#kb-empty');
+    await page.waitForSelector('#kb-empty', { state: 'visible' });
     await expect(page.locator('#kb-empty')).toHaveText('No knowledge bases yet');
   });
 });

@@ -173,6 +173,26 @@
     }
     .kb-item:hover, .doc-item:hover { background: var(--bg-tertiary); }
     .kb-item.active { background: var(--accent-light); color: var(--accent); font-weight: 500; }
+    .kb-item { justify-content: space-between; }
+    .kb-item-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+    }
+    .kb-item-delete {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      padding: 2px;
+      opacity: 0;
+      transition: opacity 0.15s;
+      border-radius: var(--radius-sm);
+    }
+    .kb-item:hover .kb-item-delete { opacity: 1; }
+    .kb-item-delete:hover { color: var(--danger); }
     .doc-item { justify-content: space-between; }
     .doc-item-name {
       overflow: hidden;
