@@ -1,5 +1,5 @@
 /**
- * IndexedDB CRUD layer for rag.always.tools.
+ * IndexedDB CRUD layer for ragbox.always.tools.
  *
  * Schema:
  *   knowledgeBases — { id, name, createdAt, chunkCount, storageBytes }

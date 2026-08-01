@@ -23,7 +23,7 @@ function greet(name) {
 
 ## Link Test
 
-Visit [RAG Tools](https://rag.always.tools) for more information.
+Visit [RAG Tools](https://ragbox.always.tools) for more information.
 
 ## Emphasis Test
 

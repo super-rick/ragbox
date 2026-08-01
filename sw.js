@@ -1,5 +1,5 @@
 /**
- * Service Worker for rag.always.tools
+ * Service Worker for ragbox.always.tools
  *
  * - Model files (huggingface.co, cdn.jsdelivr.net for transformers/onnx): cache-first
  * - Same-origin app shell + assets: network-first (app code always fresh)

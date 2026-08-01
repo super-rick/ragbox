@@ -20,7 +20,7 @@
 
 ### Use the hosted version
 
-Visit **[rag.always.tools](https://rag.always.tools)** — no install, no signup.
+Visit **[ragbox.always.tools](https://ragbox.always.tools)** — no install, no signup.
 
 ### Run locally
 

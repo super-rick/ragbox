@@ -1,5 +1,5 @@
 /**
- * E2E tests for rag.always.tools — browser-local RAG knowledge base.
+ * E2E tests for ragbox.always.tools — browser-local RAG knowledge base.
  *
  * These tests cover the complete user-facing functionality:
  * - Empty state / initial rendering

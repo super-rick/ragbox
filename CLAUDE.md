@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**rag.always.tools** — A browser-local RAG (Retrieval-Augmented Generation) knowledge base. Users drag in documents (PDF/TXT/MD), the browser vectorizes them locally, and semantic search runs entirely client-side. MIT-licensed open source, with a one-time ¥29.9 Pro tier for advanced features.
+**ragbox.always.tools** — A browser-local RAG (Retrieval-Augmented Generation) knowledge base. Users drag in documents (PDF/TXT/MD), the browser vectorizes them locally, and semantic search runs entirely client-side. MIT-licensed open source, with a one-time ¥29.9 Pro tier for advanced features.
 
-See `plan/2026-07-28_rag-always-tools-plan.md` for the full product and technical plan.
+See `plan/2026-07-28_ragbox-always-tools-plan.md` for the full product and technical plan.
 
 ## Tech Stack
 

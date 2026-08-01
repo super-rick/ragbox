@@ -20,7 +20,7 @@
 
 ### 使用在线版本
 
-访问 **[rag.always.tools](https://rag.always.tools)** — 无需安装和注册。
+访问 **[ragbox.always.tools](https://ragbox.always.tools)** — 无需安装和注册。
 
 ### 本地运行
 
