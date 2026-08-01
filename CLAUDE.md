@@ -87,3 +87,25 @@ Since this is a vanilla JS static site with no build step:
 - **Tests:** Playwright E2E via `npm test` (config at `tests/playwright.config.js` — pass it explicitly, the runner won't auto-discover it from the root)
 
 There is no bundler or build step.
+
+## 进度与计划 (Progress & Roadmap)
+
+### 已完成 (Done)
+- **核心 RAG**：PDF/TXT/MD → 分块（CJK token 自适应）→ 本地向量化 → 混合搜索（关键词+语义）→ WebLLM 问答。
+- **功能**：源文件查看（PDF 按页）、.ragbak 备份导出/导入、多知识库（创建/切换/删除 UI）、文件去重、帮助页、设置浮动窗。
+- **中文支持**：单字/两字搜索、高亮与搜索统一分词、全界面 i18n（en/zh-CN 即时切换）。
+- **健壮性**：PDF.js 本地化（vendor/pdfjs/）、模型多 CDN 降级（hf-mirror → huggingface、jsdelivr → unpkg）、SW 假离线修复、QA 停止真中断、chunk 偏移/页码修复。
+- **模型逻辑**：persist-on-load（仅加载成功才记住）、initModel 防重入去重、切换竞态防护、30s 错误重试冷却、QA WebGPU/适配器快速失败、状态模型（未下载/已缓存/就绪/下载中/错误）。
+- **测试**：23 个 Playwright E2E 全绿（核心 + 中文搜索 + 备份 + 模型逻辑）。
+- **仓库**：github.com/super-rick/ragbox（public，MIT），域名 `ragbox.always.tools`，社区文件齐全（CONTRIBUTING/CODE_OF_CONDUCT/SECURITY/CHANGELOG/GitHub 模板）。
+
+### 计划 / 待办 (Planned)
+1. **部署上线**：Cloudflare Pages 连接 GitHub 仓库 + 绑定自定义域名 `ragbox.always.tools`（需 Cloudflare 账号）。部署后 Windows/远程访问才支持 WebGPU（QA）。
+2. **DOCX/EPUB**：已从支持列表移除；若要做需 JSZip 实现（可选）。
+3. **打磨项**：KB/文档重命名、存储配额警告（>80%）、SW 离线横幅。
+4. **模型本地化（备选）**：若外部模型/CDN 网络长期不稳，把 all-MiniLM-L6-v2 + transformers 库 vendor 进仓库（~38MB），实现真离线。
+
+### 注意事项
+- **WebGPU（QA 功能）需要 HTTPS 或 localhost 安全上下文**——局域网 http 访问时 `navigator.gpu` 为 undefined，Ask AI 按钮不显示。
+- 嵌入模型**persist-on-load**：仅在 `initModel` 成功后写入 `rag-embed-model`；改设置下拉框是预览，不触发下载。
+- 模型文件优先 `hf-mirror.com`（CN 友好），失败回退 `huggingface.co`；库优先 jsdelivr `+esm`，失败回退 unpkg dist。
