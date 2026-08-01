@@ -75,6 +75,10 @@ npm test
 - [x] 深色主题、中英界面、离线支持
 - [ ] DOCX / EPUB 支持
 
+## 参与贡献
+
+欢迎贡献！开发环境和规范见 [CONTRIBUTING.md](CONTRIBUTING.md)。请阅读[行为准则](CODE_OF_CONDUCT.md)，安全问题请通过 [SECURITY.md](SECURITY.md) 报告。
+
 ## License
 
 MIT

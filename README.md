@@ -75,6 +75,11 @@ Search query → keyword + semantic (cosine similarity) hybrid ranking
 - [x] Dark theme, Chinese / English UI, offline support
 - [ ] DOCX / EPUB support
 
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and guidelines.
+Please read the [Code of Conduct](CODE_OF_CONDUCT.md) and report security issues via [SECURITY.md](SECURITY.md).
+
 ## License
 
 MIT

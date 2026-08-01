@@ -62,6 +62,8 @@ ragbox/                            ← Public GitHub, MIT
 ├── .gitignore                      ← Excludes /plan/, .env
 ├── CLAUDE.md                       ← This file
 ├── README.md / README.zh-CN.md
+├── CONTRIBUTING.md / CODE_OF_CONDUCT.md / SECURITY.md / CHANGELOG.md
+├── .github/                        ← Issue & PR templates
 └── LICENSE                         ← MIT
 
 NOT in Git (.gitignore):
