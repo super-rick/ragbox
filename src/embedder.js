@@ -11,8 +11,40 @@ import { state } from './state.js';
 let extractor = null;
 let modelName = 'Xenova/all-MiniLM-L6-v2';
 
-async function loadTransformers() {
-  return import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/+esm');
+// Hugging Face is often unreachable from some networks (especially CN), which
+// made model-file requests (config.json, tokenizer.json, ...) hang or 404 and
+// freeze the page. Fetch the model files from a mirror first, falling back to
+// the official host. Each attempt has a timeout so a hanging host can't block.
+const MODEL_REMOTE_HOSTS = ['https://hf-mirror.com/', 'https://huggingface.co/'];
+const MODEL_LOAD_TIMEOUT = 45_000; // bounded so a hanging host can't freeze the page long
+
+// jsdelivr's +esm bundle can be unreachable/flaky on some networks, so try
+// unpkg's real dist file as a fallback. import() is cached per-URL, so each
+// CDN is attempted fresh.
+const TRANSFORMERS_LIBRARIES = [
+  'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/+esm',
+  'https://unpkg.com/@xenova/transformers@2.17.2/dist/transformers.min.js',
+];
+
+async function loadTransformers(remoteHost) {
+  let lastErr = null;
+  for (const libUrl of TRANSFORMERS_LIBRARIES) {
+    try {
+      const transformers = await import(libUrl);
+      if (remoteHost) transformers.env.remoteHost = remoteHost;
+      return transformers;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr || new Error('Failed to load Transformers.js');
+}
+
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(label + ' timed out')), ms)),
+  ]);
 }
 
 /**
@@ -44,28 +76,41 @@ export async function initModel(opts = {}) {
     state.set('modelStatus', 'downloading');
     state.set('modelProgress', 0);
 
-    const transformers = await loadTransformers();
-
-    extractor = await transformers.pipeline('feature-extraction', modelName, {
-      progress_callback: (info) => {
-        if (info.status === 'progress') {
-          const progress = Math.round((info.loaded / info.total) * 100);
-          state.set('modelProgress', Math.min(progress, 99));
-          onProgress?.({
-            status: 'downloading',
-            progress: info.loaded / info.total,
-            loaded: info.loaded,
-            total: info.total,
-          });
-        } else if (info.status === 'done') {
-          state.set('modelProgress', 100);
-        }
-      },
-    });
-
-    state.set('modelStatus', 'ready');
-    state.set('modelProgress', 100);
-    onProgress?.({ status: 'ready' });
+    let lastErr = null;
+    for (const remoteHost of MODEL_REMOTE_HOSTS) {
+      try {
+        const transformers = await loadTransformers(remoteHost);
+        extractor = await withTimeout(
+          transformers.pipeline('feature-extraction', modelName, {
+            progress_callback: (info) => {
+              if (info.status === 'progress') {
+                const progress = Math.round((info.loaded / info.total) * 100);
+                state.set('modelProgress', Math.min(progress, 99));
+                onProgress?.({
+                  status: 'downloading',
+                  progress: info.loaded / info.total,
+                  loaded: info.loaded,
+                  total: info.total,
+                });
+              } else if (info.status === 'done') {
+                state.set('modelProgress', 100);
+              }
+            },
+          }),
+          MODEL_LOAD_TIMEOUT,
+          'Model load on ' + remoteHost
+        );
+        state.set('modelStatus', 'ready');
+        state.set('modelProgress', 100);
+        onProgress?.({ status: 'ready' });
+        return;
+      } catch (err) {
+        console.warn('Embedding model load failed on', remoteHost, ':', err);
+        lastErr = err;
+        extractor = null;
+      }
+    }
+    throw lastErr || new Error('Failed to load embedding model on all hosts');
   } catch (err) {
     console.error('Model init failed:', err);
     state.set('modelStatus', 'error');
