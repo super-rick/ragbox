@@ -66,7 +66,7 @@ export async function initApp() {
   applyLocale();
 
   // Auto-init model on first search or ingestion
-  console.log('RAG Tools initialized.');
+  console.log('RAG Box initialized.');
 }
 
 /**

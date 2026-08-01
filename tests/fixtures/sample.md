@@ -1,6 +1,6 @@
 # Sample Markdown Document
 
-> A markdown document for testing RAG Tools ingestion.
+> A markdown document for testing RAG Box ingestion.
 
 ## Overview
 
@@ -23,7 +23,7 @@ function greet(name) {
 
 ## Link Test
 
-Visit [RAG Tools](https://ragbox.always.tools) for more information.
+Visit [RAG Box](https://ragbox.always.tools) for more information.
 
 ## Emphasis Test
 

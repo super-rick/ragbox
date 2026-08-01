@@ -7,7 +7,7 @@ import { state } from './state.js';
 const translations = {
   'en': {
     // General
-    'app.name': 'RAG Tools',
+    'app.name': 'RAG Box',
     'app.tagline': 'Browser Local Knowledge Base',
 
     // Sidebar
@@ -83,15 +83,6 @@ const translations = {
     'error.file_type': 'Unsupported file type. Supported: {types}',
     'error.generic': 'Something went wrong. Please try again.',
     'error.offline': 'You appear to be offline. Some features may not work.',
-
-    // Pro
-    'pro.title': 'Upgrade to Pro',
-    'pro.price': '¥29.9 one-time',
-    'pro.benefits': 'Unlimited documents, RAG Q&A, export/import, DOCX/EPUB, no ads',
-    'pro.enter_license': 'Enter License Key',
-    'pro.activate': 'Activate',
-    'pro.activated': 'Pro activated!',
-    'pro.invalid': 'Invalid license key',
 
     // QA
     'qa.ask': 'Ask',
@@ -184,15 +175,15 @@ const translations = {
     'overlay.dismiss': 'Continue browsing',
 
     // Router titles
-    'route.home': 'RAG Tools — Browser Local Knowledge Base',
-    'route.search': 'Search — RAG Tools',
-    'route.docs': 'Documents — RAG Tools',
-    'route.settings': 'Settings — RAG Tools',
+    'route.home': 'RAG Box — Browser Local Knowledge Base',
+    'route.search': 'Search — RAG Box',
+    'route.docs': 'Documents — RAG Box',
+    'route.settings': 'Settings — RAG Box',
   },
 
   'zh-CN': {
     // General
-    'app.name': 'RAG Tools',
+    'app.name': 'RAG Box',
     'app.tagline': '浏览器本地知识库',
 
     // Sidebar
@@ -268,15 +259,6 @@ const translations = {
     'error.file_type': '不支持的文件类型。支持：{types}',
     'error.generic': '出错了，请重试。',
     'error.offline': '您似乎离线了，部分功能可能不可用。',
-
-    // Pro
-    'pro.title': '升级到 Pro',
-    'pro.price': '¥29.9 一次买断',
-    'pro.benefits': '无限文档、RAG 问答、导出导入、DOCX/EPUB、无广告',
-    'pro.enter_license': '输入 License Key',
-    'pro.activate': '激活',
-    'pro.activated': 'Pro 已激活！',
-    'pro.invalid': '无效的 License Key',
 
     // QA
     'qa.ask': '提问',
@@ -369,10 +351,10 @@ const translations = {
     'overlay.dismiss': '继续浏览',
 
     // Router titles
-    'route.home': 'RAG Tools — 浏览器本地知识库',
-    'route.search': '搜索 — RAG Tools',
-    'route.docs': '文档 — RAG Tools',
-    'route.settings': '设置 — RAG Tools',
+    'route.home': 'RAG Box — 浏览器本地知识库',
+    'route.search': '搜索 — RAG Box',
+    'route.docs': '文档 — RAG Box',
+    'route.settings': '设置 — RAG Box',
   },
 };
 
