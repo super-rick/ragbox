@@ -167,6 +167,16 @@ const translations = {
     'settings.status_loading': 'Loading',
     'settings.language_set': 'Language set to {name}',
 
+    // Backup
+    'backup.tab': '💾 Backup',
+    'backup.title': 'Backup & Restore',
+    'backup.export': '⬇ Export (.ragbak)',
+    'backup.import': '⬆ Import (.ragbak)',
+    'backup.desc': 'Export all knowledge bases with vectors for backup or transfer to another browser.',
+    'backup.exported': 'Exported {kbs} KBs, {docs} docs, {chunks} chunks.',
+    'backup.imported': 'Imported {kbs} KBs, {docs} docs, {chunks} chunks.',
+    'backup.import_failed': 'Import failed: {msg}',
+
     // Model download overlay
     'overlay.title': 'Loading AI Model',
     'overlay.desc': 'Downloading embedding model (~23MB).\nFirst-time setup, one-time only. Cached for offline use.',
@@ -340,6 +350,16 @@ const translations = {
     'settings.status_downloading': '下载中',
     'settings.status_loading': '加载中',
     'settings.language_set': '已切换语言：{name}',
+
+    // Backup
+    'backup.tab': '💾 备份',
+    'backup.title': '备份与恢复',
+    'backup.export': '⬇ 导出（.ragbak）',
+    'backup.import': '⬆ 导入（.ragbak）',
+    'backup.desc': '导出全部知识库及向量，用于备份或迁移到其他浏览器。',
+    'backup.exported': '已导出 {kbs} 个知识库、{docs} 个文档、{chunks} 个分块。',
+    'backup.imported': '已导入 {kbs} 个知识库、{docs} 个文档、{chunks} 个分块。',
+    'backup.import_failed': '导入失败：{msg}',
 
     // Model download overlay
     'overlay.title': '正在加载 AI 模型',

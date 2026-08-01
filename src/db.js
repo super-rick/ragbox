@@ -396,6 +396,26 @@ export function updateChunkEmbedding(chunkId, embedding) {
   });
 }
 
+export function getAllDocuments() {
+  return runTransaction('documents', 'readonly', (store) => {
+    return new Promise((resolve, reject) => {
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  });
+}
+
+export function getAllChunks() {
+  return runTransaction('chunks', 'readonly', (store) => {
+    return new Promise((resolve, reject) => {
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  });
+}
+
 export function deleteChunksByDoc(docId) {
   return runTransaction('chunks', 'readwrite', (store) => {
     return new Promise((resolve, reject) => {

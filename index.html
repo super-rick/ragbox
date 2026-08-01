@@ -853,6 +853,7 @@
             <div class="settings-tabs">
               <button class="settings-tab active" data-tab="models">🧠 Models</button>
               <button class="settings-tab" data-tab="language">🌐 Language</button>
+              <button class="settings-tab" data-tab="backup">💾 Backup</button>
             </div>
 
           <!-- Models Panel -->
@@ -939,6 +940,24 @@
                 <button class="settings-lang-btn" data-lang="en">English<span class="lang-check">✓</span></button>
                 <button class="settings-lang-btn" data-lang="zh-CN">简体中文<span class="lang-check">✓</span></button>
               </div>
+            </div>
+          </div>
+
+          <!-- Backup Panel -->
+          <div class="settings-panel" id="panel-backup">
+            <div class="model-card">
+              <div class="model-card-header">
+                <div class="model-card-title">
+                  <span class="model-icon">💾</span>
+                  <span id="backup-title">Backup &amp; Restore</span>
+                </div>
+              </div>
+              <div class="model-card-actions" style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                <button class="btn-primary" id="export-backup-btn">⬇ Export (.ragbak)</button>
+                <button class="btn-secondary" id="import-backup-btn">⬆ Import (.ragbak)</button>
+                <input type="file" id="backup-file-input" accept=".ragbak,.json" style="display:none;">
+              </div>
+              <div class="cache-warning" id="backup-desc">Export all knowledge bases with vectors for backup or transfer to another browser.</div>
             </div>
           </div>
           </div>

@@ -18,6 +18,7 @@ import { readFileAsArrayBuffer, readFileAsText, setupDragDrop, setupFileInput,
 import { initModel, embed, embedSingle, isModelReady, getModelInfo } from './embedder.js';
 import { hybridSearch, keywordSearch, highlightMatches } from './search.js';
 import { updateTitle } from './router.js';
+import { exportBackup, importBackup } from './backup.js';
 import { initLicense } from './license.js';
 import { initQAEngine, askQuestion, isWebGPUSupported, getEngineStatus, getQAModelId, abortAnswer, isAnswering, unloadQAEngine } from './qa.js';
 import {
@@ -136,6 +137,18 @@ function applyLocale() {
   if (embedRedl) embedRedl.textContent = t('settings.redownload');
   const qaDl = $('#qa-download-btn');
   if (qaDl) qaDl.textContent = t('settings.download');
+
+  // Backup panel
+  const backupTab = document.querySelector('.settings-tab[data-tab="backup"]');
+  if (backupTab) backupTab.textContent = t('backup.tab');
+  const backupTitle = $('#backup-title');
+  if (backupTitle) backupTitle.textContent = t('backup.title');
+  const exportBtn = $('#export-backup-btn');
+  if (exportBtn) exportBtn.textContent = t('backup.export');
+  const importBtn = $('#import-backup-btn');
+  if (importBtn) importBtn.textContent = t('backup.import');
+  const backupDesc = $('#backup-desc');
+  if (backupDesc) backupDesc.textContent = t('backup.desc');
 
   // If the settings dialog is open, refresh its dynamic status in the new locale.
   const settingsPage = document.getElementById('settings-page');
@@ -291,6 +304,33 @@ function setupEventListeners() {
       const panel = document.getElementById('panel-' + tab.dataset.tab);
       if (panel) panel.classList.add('active');
     });
+  });
+
+  // Backup: export downloads a .ragbak; import reads one back in.
+  $('#export-backup-btn').addEventListener('click', async () => {
+    try {
+      const r = await exportBackup();
+      showToast(t('backup.exported', r), 'success');
+    } catch (err) {
+      showToast(t('backup.import_failed', { msg: err.message }), 'error');
+    }
+  });
+  $('#import-backup-btn').addEventListener('click', () => $('#backup-file-input').click());
+  $('#backup-file-input').addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const content = await file.arrayBuffer();
+      const r = await importBackup(content);
+      showToast(t('backup.imported', r), 'success');
+      await refreshKBList();
+      await refreshDocList();
+      await refreshStats();
+    } catch (err) {
+      showToast(t('backup.import_failed', { msg: err.message }), 'error');
+    } finally {
+      e.target.value = ''; // allow re-picking the same file
+    }
   });
 }
 
