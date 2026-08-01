@@ -15,7 +15,7 @@ import { chunkText, estimateTokens } from './chunker.js';
 import { extractPDFText } from './pdf-extractor.js';
 import { readFileAsArrayBuffer, readFileAsText, setupDragDrop, setupFileInput,
          validateFile, stripMarkdown } from './file-handler.js';
-import { initModel, embed, embedSingle, isModelReady, getModelInfo } from './embedder.js';
+import { initModel, embed, embedSingle, isModelReady, getModelInfo, setModelName, unloadModel, EMBED_MODEL_KEY } from './embedder.js';
 import { hybridSearch, keywordSearch, highlightMatches } from './search.js';
 import { updateTitle } from './router.js';
 import { exportBackup, importBackup } from './backup.js';
@@ -25,11 +25,11 @@ import {
   getEmbeddingModelInfo, getQAModelInfo,
   getAvailableEmbeddingModels, getAvailableQAModels,
   checkModelCache, getCacheInfo, clearModelCache,
+  getModelCombinedStatus,
 } from './models.js';
 
 // ─── Embedding model selection ──────────────────────────────────
 
-const EMBED_MODEL_KEY = 'rag-embed-model';
 const DEFAULT_EMBED_MODEL = 'Xenova/all-MiniLM-L6-v2';
 
 /**
@@ -42,11 +42,40 @@ function getSavedEmbedModelId() {
   return saved && available.includes(saved) ? saved : DEFAULT_EMBED_MODEL;
 }
 
+let lastEmbedErrorAt = 0;
+const EMBED_RETRY_COOLDOWN_MS = 30_000;
+
+/**
+ * Ensure the active embedding model is loaded (auto-init for search/ingest/QA).
+ * - Already loaded → resolve.
+ * - Model in error within the cooldown → skip (avoids re-opening the download
+ *   overlay on every search); the Settings Download button always retries.
+ * - Otherwise initModel(); concurrent calls join the same in-flight download.
+ * Errors are swallowed so keyword search keeps working.
+ */
+function ensureEmbeddingModel({ onProgress } = {}) {
+  if (isModelReady()) return Promise.resolve();
+  if (state.get('modelStatus') === 'error'
+      && Date.now() - lastEmbedErrorAt < EMBED_RETRY_COOLDOWN_MS) {
+    return Promise.resolve();
+  }
+  return initModel({ modelId: getSavedEmbedModelId(), onProgress })
+    .then(() => {})
+    .catch((err) => {
+      lastEmbedErrorAt = Date.now();
+      console.warn('Embedding model unavailable:', err);
+    });
+}
+
 // ─── Initialization ──────────────────────────────────────────────
 
 export async function initApp() {
   // Wire up event listeners
   setupEventListeners();
+
+  // Align the active model name with the persisted choice so the settings
+  // card/dropdown and auto-init agree on fresh load (before any model loads).
+  setModelName(getSavedEmbedModelId());
 
   // Open IndexedDB
   await openDB();
@@ -161,7 +190,7 @@ function applyLocale() {
   // If the settings dialog is open, refresh its dynamic status in the new locale.
   const settingsPage = document.getElementById('settings-page');
   if (settingsPage && settingsPage.classList.contains('active')) {
-    updateEmbeddingCard(getEmbeddingModelInfo().status);
+    refreshEmbeddingCard(getEmbeddingModelInfo().current.id);
     updateQACard(getQAModelInfo().status);
     refreshCacheInfo();
   }
@@ -289,6 +318,35 @@ function setupEventListeners() {
     if (status === 'ready') backfillNullEmbeddings();
   });
 
+  // Settings card live updates (one-time setup — must NOT live in
+  // renderSettingsPage, which re-subscribes on every settings open).
+  state.subscribe('modelStatus', (status) => {
+    if (document.getElementById('settings-page').classList.contains('active')) {
+      refreshEmbeddingCard(getEmbeddingModelInfo().current.id);
+    }
+  });
+  state.subscribe('modelProgress', (progress) => {
+    const section = document.getElementById('embed-progress-section');
+    if (document.getElementById('settings-page').classList.contains('active')) {
+      section.style.display = progress < 100 ? 'block' : 'none';
+      document.getElementById('embed-progress-fill').style.width = progress + '%';
+      document.getElementById('embed-progress-label').textContent = progress + '%';
+    }
+  });
+  state.subscribe('qaModelStatus', (status) => {
+    if (document.getElementById('settings-page').classList.contains('active')) {
+      updateQACard(status);
+    }
+  });
+  state.subscribe('qaModelProgress', (progress) => {
+    const section = document.getElementById('qa-progress-section');
+    if (document.getElementById('settings-page').classList.contains('active')) {
+      section.style.display = progress < 100 ? 'block' : 'none';
+      document.getElementById('qa-progress-fill').style.width = progress + '%';
+      document.getElementById('qa-progress-label').textContent = progress + '%';
+    }
+  });
+
   // Settings button → toggle settings page
   $('#settings-toggle').addEventListener('click', () => {
     const settingsPage = document.getElementById('settings-page');
@@ -373,16 +431,13 @@ function toggleQAMode() {
     qaInput.focus();
 
     // Ensure embedding model is loaded (needed for search behind QA)
-    if (!isModelReady()) {
-      initModel({
-        modelId: getSavedEmbedModelId(),
-        onProgress: (progress) => {
-          if (progress.status === 'downloading') {
-            state.set('modelProgress', Math.round(progress.progress * 100));
-          }
-        },
-      }).catch(() => {});
-    }
+    ensureEmbeddingModel({
+      onProgress: (progress) => {
+        if (progress.status === 'downloading') {
+          state.set('modelProgress', Math.round(progress.progress * 100));
+        }
+      },
+    });
 
     // Init QA engine if first time
     if (!qaEngineInitialized) {
@@ -536,18 +591,13 @@ async function handleFiles(files) {
   if (newFiles.length === 0) return;
 
   // Start model init in background (non-blocking for ingestion)
-  if (!isModelReady() && state.get('modelStatus') === 'idle') {
-    initModel({
-      modelId: getSavedEmbedModelId(),
-      onProgress: (progress) => {
-        if (progress.status === 'downloading') {
-          state.set('modelProgress', Math.round(progress.progress * 100));
-        }
-      },
-    }).catch(() => {
-      console.warn('Model failed to load — will embed chunks later');
-    });
-  }
+  ensureEmbeddingModel({
+    onProgress: (progress) => {
+      if (progress.status === 'downloading') {
+        state.set('modelProgress', Math.round(progress.progress * 100));
+      }
+    },
+  });
 
   // Add to queue and process — each file carries its own target KB, so files
   // dropped after switching KBs route to the correct (new) KB, not the old one.
@@ -794,9 +844,7 @@ async function performSearch(query) {
 
   // Try to init model in background (non-blocking)
   // search works via keyword even without model
-  if (!isModelReady() && state.get('modelStatus') === 'idle') {
-    initModel({ modelId: getSavedEmbedModelId() }).catch(() => {}); // fire-and-forget; model loads when it loads
-  }
+  ensureEmbeddingModel();
 
   // Show brief loading for search
   renderLoadingState(resultsContainer, { message: t('search.searching') });
@@ -1193,19 +1241,21 @@ async function renderSettingsPage() {
     const opt = document.createElement('option');
     opt.value = m.id;
     opt.textContent = `${m.name} (${m.dims}d, ${m.size}) — ${m.quality}`;
-    // Restore previous selection, or default to current active model
-    if (prevEmbedVal ? m.id === prevEmbedVal : m.id === embedInfo.current.id) {
+    // Restore previous selection, or default to the persisted choice
+    if (prevEmbedVal ? m.id === prevEmbedVal : m.id === getSavedEmbedModelId()) {
       opt.selected = true;
     }
     embedSelect.appendChild(opt);
+    // Annotate each option with its download/load status (async cache check).
+    getModelCombinedStatus(m.id).then((st) => {
+      if (st === 'ready') opt.textContent += ' ✓';
+      else if (st === 'cached') opt.textContent += ' [' + t('settings.status_cached') + ']';
+      else if (st === 'not_downloaded') opt.textContent += ' [' + t('settings.status_not_downloaded') + ']';
+    });
   }
 
-  // Update info
-  if (!prevEmbedVal || embedSelect.value === embedInfo.current.id) {
-    updateEmbeddingCard(embedInfo.status);
-  } else {
-    updateEmbeddingCardFromId(embedSelect.value);
-  }
+  // Update the card from the selected model's combined status (badge + button).
+  refreshEmbeddingCard(embedSelect.value);
 
   // ─── QA model info ──────────────────────────────────────
   const qaInfo = getQAModelInfo();
@@ -1257,9 +1307,10 @@ async function renderSettingsPage() {
   }
 
   // ─── Model selector change → update card + cache ─────
+  // Changing the dropdown only PREVIEWS the model — it neither downloads nor
+  // persists (the active model is persisted on successful load in initModel).
   embedSelect.onchange = () => {
     const selected = embedSelect.value;
-    localStorage.setItem(EMBED_MODEL_KEY, selected);
     updateEmbeddingCardFromId(selected);
     updateEmbedCacheStatus(selected);
   };
@@ -1300,19 +1351,20 @@ async function renderSettingsPage() {
       showToast(t('settings.embedding_ready'), 'success');
       // Refresh cache status and card info after download
       updateEmbedCacheStatus(selected);
-      updateEmbeddingCard('ready');
       refreshCacheInfo();
     } catch (err) {
       showToast(t('settings.embedding_failed', { msg: err.message }), 'error');
     } finally {
-      embedDownloadBtn.disabled = false;
-      embedDownloadBtn.textContent = t('settings.download');
+      // Reflect the final state: Ready (disabled) on success, Download/Load on failure.
+      refreshEmbeddingCard(selected);
     }
   };
 
-  // Embed model re-download (clear cache first)
+  // Embed model re-download (clear cache + unload the in-memory model, so a
+  // subsequent Download actually re-fetches instead of short-circuiting).
   document.getElementById('embed-redownload-btn').onclick = async () => {
     await clearModelCache();
+    unloadModel();
     document.getElementById('embed-cache-status').textContent = t('settings.cache_cleared');
     showToast(t('settings.cache_cleared_toast'), 'info');
   };
@@ -1392,43 +1444,21 @@ async function renderSettingsPage() {
     btn.classList.toggle('active', btn.dataset.lang === currentLang);
   });
 
-  // ─── State subscriptions (one-time setup) ────────────────
-  state.subscribe('modelStatus', (status) => {
-    if (document.getElementById('settings-page').classList.contains('active')) {
-      updateEmbeddingCard(status);
-    }
-  });
-  state.subscribe('modelProgress', (progress) => {
-    const section = document.getElementById('embed-progress-section');
-    if (document.getElementById('settings-page').classList.contains('active')) {
-      section.style.display = progress < 100 ? 'block' : 'none';
-      document.getElementById('embed-progress-fill').style.width = progress + '%';
-      document.getElementById('embed-progress-label').textContent = progress + '%';
-    }
-  });
-  state.subscribe('qaModelStatus', (status) => {
-    if (document.getElementById('settings-page').classList.contains('active')) {
-      updateQACard(status);
-    }
-  });
-  state.subscribe('qaModelProgress', (progress) => {
-    const section = document.getElementById('qa-progress-section');
-    if (document.getElementById('settings-page').classList.contains('active')) {
-      section.style.display = progress < 100 ? 'block' : 'none';
-      document.getElementById('qa-progress-fill').style.width = progress + '%';
-      document.getElementById('qa-progress-label').textContent = progress + '%';
-    }
-  });
 }
 
 function updateEmbeddingCard(status) {
   const info = getEmbeddingModelInfo();
-  const badge = document.getElementById('embed-status-badge');
-  badge.textContent = (STATUS_LABELS[status] || (() => status))();
-  badge.className = 'model-status-badge ' + status;
   document.getElementById('embed-model-name').textContent = info.current.name;
   document.getElementById('embed-model-dims').textContent = info.current.dims + '-dim';
   document.getElementById('embed-model-size').textContent = info.current.size;
+  if (status === 'idle') {
+    // Not in memory — show cache-based status (cached / not downloaded).
+    refreshEmbeddingCard(info.current.id);
+  } else {
+    const badge = document.getElementById('embed-status-badge');
+    badge.textContent = (STATUS_LABELS[status] || (() => status))();
+    badge.className = 'model-status-badge ' + status;
+  }
 }
 
 /**
@@ -1442,8 +1472,47 @@ function updateEmbeddingCardFromId(modelId) {
   document.getElementById('embed-model-name').textContent = model.name;
   document.getElementById('embed-model-dims').textContent = model.dims + '-dim';
   document.getElementById('embed-model-size').textContent = model.size;
-  document.getElementById('embed-status-badge').textContent = t('settings.idle');
-  document.getElementById('embed-status-badge').className = 'model-status-badge idle';
+  refreshEmbeddingCard(modelId); // badge + button from combined status
+}
+
+const EMBED_STATUS_KEYS = {
+  ready: () => t('settings.status_ready'),
+  downloading: () => t('settings.status_downloading'),
+  loading: () => t('settings.status_loading'),
+  error: () => t('settings.status_error'),
+  cached: () => t('settings.status_cached'),
+  not_downloaded: () => t('settings.status_not_downloaded'),
+};
+
+/**
+ * Update the embedding card (name/dims/size, status badge, download button)
+ * from a model's COMBINED status: in-memory load state + SW cache. The badge
+ * distinguishes 未下载 / 已缓存 / 就绪 / 下载中 / 错误; the button becomes
+ * "Load" when the model is cached, "Download" when not, and disables at ready.
+ */
+async function refreshEmbeddingCard(modelId) {
+  const available = getAvailableEmbeddingModels();
+  const model = available.find(m => m.id === modelId);
+  if (model) {
+    document.getElementById('embed-model-name').textContent = model.name;
+    document.getElementById('embed-model-dims').textContent = model.dims + '-dim';
+    document.getElementById('embed-model-size').textContent = model.size;
+  }
+  const st = await getModelCombinedStatus(modelId);
+  const badge = document.getElementById('embed-status-badge');
+  if (badge) {
+    badge.textContent = (EMBED_STATUS_KEYS[st] || (() => st))();
+    badge.className = 'model-status-badge ' + (st === 'error' ? 'error' : st === 'downloading' || st === 'loading' ? 'loading' : 'idle');
+  }
+  const btn = document.getElementById('embed-download-btn');
+  if (btn) {
+    const busy = st === 'downloading' || st === 'loading';
+    btn.disabled = st === 'ready' || busy;
+    if (st === 'ready') btn.textContent = t('settings.status_ready');
+    else if (busy) btn.textContent = t('settings.loading');
+    else btn.textContent = st === 'cached' ? t('settings.load') : t('settings.download');
+  }
+  return st;
 }
 
 const STATUS_LABELS = {

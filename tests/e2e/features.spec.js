@@ -116,17 +116,50 @@ test('settings opens as a modal and search results survive close', async ({ page
   await expect(page.locator('#results-container .result-item')).not.toHaveCount(0);
 });
 
-// ─── Embedding model selection persistence ────────────────────────
+// ─── Embedding model selection (persist-on-load) ─────────────────
 
-test('selecting an embedding model persists the choice', async ({ page }) => {
+test('changing the model selection does not persist or download', async ({ page }) => {
   await page.click('#settings-toggle');
   await page.waitForTimeout(300);
 
+  // Merely selecting a model is a preview — it must NOT be persisted
+  // (persist-on-load), otherwise the next auto-init would download it.
   await page.selectOption('#embed-model-select', 'Xenova/all-MiniLM-L12-v2');
   await page.waitForTimeout(200);
 
   const saved = await page.evaluate(() => localStorage.getItem('rag-embed-model'));
-  expect(saved).toBe('Xenova/all-MiniLM-L12-v2');
+  expect(saved).toBeNull();
+});
+
+test('model selection is restored from storage on reload', async ({ page }) => {
+  await page.evaluate(() => localStorage.setItem('rag-embed-model', 'Xenova/all-mpnet-base-v2'));
+  await page.reload();
+  await page.waitForSelector('#header');
+  await page.click('#settings-toggle');
+  await page.waitForTimeout(400);
+  await expect(page.locator('#embed-model-select')).toHaveValue('Xenova/all-mpnet-base-v2');
+});
+
+test('settings card shows the model download status', async ({ page }) => {
+  await page.click('#settings-toggle');
+  await page.waitForTimeout(500); // let the async cache check settle
+  // In a fresh environment no model is downloaded yet.
+  await expect(page.locator('#embed-status-badge')).toHaveText(/Not downloaded|未下载/);
+  await expect(page.locator('#embed-download-btn')).toHaveText(/Download|下载/);
+});
+
+test('concurrent model inits share one download', async ({ page }) => {
+  const downloads = await page.evaluate(async () => {
+    const m = await import('./src/embedder.js');
+    const s = await import('./src/state.js');
+    let count = 0;
+    s.state.subscribe('modelStatus', (v) => { if (v === 'downloading') count++; });
+    const p1 = m.initModel({ modelId: 'Xenova/all-MiniLM-L6-v2' });
+    const p2 = m.initModel({ modelId: 'Xenova/all-MiniLM-L6-v2' });
+    await Promise.allSettled([p1, p2]);
+    return count;
+  });
+  expect(downloads).toBe(1);
 });
 
 // ─── .ragbak backup export ────────────────────────────────────────

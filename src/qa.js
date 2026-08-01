@@ -15,10 +15,21 @@ import { hybridSearch } from './search.js';
 import { state } from './state.js';
 import { t } from './i18n.js';
 
+export const QA_MODEL_KEY = 'rag-qa-model';
+// Mirrors models.js AVAILABLE_QA_MODELS ids — duplicated here to avoid a
+// circular import (models.js imports qa.js).
+const QA_MODEL_IDS = ['Qwen2.5-0.5B-Instruct-q4f16_1-MLC', 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC'];
+
 let engine = null;
 let engineStatus = 'idle'; // idle | loading | ready | error
 let currentAbortController = null;
-let currentModelId = 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC';
+let qaInitPromise = null; // in-flight init, so concurrent callers share one download
+// Persisted QA model choice, validated against the known ids.
+const savedQA = (() => {
+  const s = localStorage.getItem(QA_MODEL_KEY);
+  return s && QA_MODEL_IDS.includes(s) ? s : null;
+})();
+let currentModelId = savedQA || 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC';
 
 const MAX_CONTEXT_CHUNKS = 3;
 const MAX_CONTEXT_CHUNKS_SEARCH = 12;
@@ -51,51 +62,81 @@ export async function initQAEngine(opts = {}) {
   const onProgress = typeof opts === 'function' ? opts : opts.onProgress;
   const newModelId = (typeof opts === 'object' ? opts.modelId : null) || currentModelId;
 
-  // If switching to a different model, unload current first
+  // Switching to a different model: invalidate any in-flight init and unload.
   if (newModelId !== currentModelId) {
+    qaInitPromise = null;
     unloadQAEngine();
     currentModelId = newModelId;
   }
 
   if (engine) return;
-  if (engineStatus === 'loading') return;
+  if (qaInitPromise) return qaInitPromise; // join an in-flight init (dedup)
 
-  try {
-    engineStatus = 'loading';
-    state.set('qaModelStatus', 'loading');
-    state.set('qaModelProgress', 0);
-    onProgress?.({ status: 'loading', progress: 0 });
-
-    const webllm = await import('https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.67/+esm');
-
-    const initProgressCallback = (report) => {
-      if (report.status === 'progress') {
-        const progress = report.progress || 0;
-        state.set('qaModelProgress', Math.round(progress * 100));
-        onProgress?.({
-          status: 'downloading',
-          progress,
-          loaded: report.loaded || 0,
-          total: report.total || 0,
-          text: report.text || '',
-        });
-      }
-    };
-
-    engine = await webllm.CreateMLCEngine(currentModelId, {
-      initProgressCallback,
-    });
-
-    engineStatus = 'ready';
-    state.set('qaModelStatus', 'ready');
-    state.set('qaModelProgress', 100);
-    onProgress?.({ status: 'ready' });
-  } catch (err) {
+  // Fail fast without WebGPU — don't start a ~500MB download pointlessly.
+  if (!isWebGPUSupported()) {
     engineStatus = 'error';
     state.set('qaModelStatus', 'error');
+    const err = new Error('WebGPU is not supported in this browser');
     onProgress?.({ status: 'error', error: err.message });
     throw err;
   }
+  // navigator.gpu can be present while no usable adapter exists (blocked/software
+  // GPU) — verify an adapter is actually available before downloading.
+  let adapter = null;
+  try { adapter = await navigator.gpu.requestAdapter(); } catch { /* no adapter */ }
+  if (!adapter) {
+    engineStatus = 'error';
+    state.set('qaModelStatus', 'error');
+    const err = new Error('WebGPU adapter is not available in this browser');
+    onProgress?.({ status: 'error', error: err.message });
+    throw err;
+  }
+
+  const p = (async () => {
+    try {
+      engineStatus = 'loading';
+      state.set('qaModelStatus', 'loading');
+      state.set('qaModelProgress', 0);
+      onProgress?.({ status: 'loading', progress: 0 });
+
+      const webllm = await import('https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.67/+esm');
+
+      const initProgressCallback = (report) => {
+        if (report.status === 'progress') {
+          const progress = report.progress || 0;
+          state.set('qaModelProgress', Math.round(progress * 100));
+          onProgress?.({
+            status: 'downloading',
+            progress,
+            loaded: report.loaded || 0,
+            total: report.total || 0,
+            text: report.text || '',
+          });
+        }
+      };
+
+      engine = await webllm.CreateMLCEngine(currentModelId, {
+        initProgressCallback,
+      });
+
+      engineStatus = 'ready';
+      state.set('qaModelStatus', 'ready');
+      state.set('qaModelProgress', 100);
+      onProgress?.({ status: 'ready' });
+      // Remember the QA model we actually loaded (persist-on-load).
+      localStorage.setItem(QA_MODEL_KEY, currentModelId);
+    } catch (err) {
+      engineStatus = 'error';
+      state.set('qaModelStatus', 'error');
+      onProgress?.({ status: 'error', error: err.message });
+      throw err;
+    } finally {
+      // Identity-aware: only clear if we are still the active in-flight init.
+      if (qaInitPromise === p) qaInitPromise = null;
+    }
+  })();
+  qaInitPromise = p;
+  return p;
 }
 
 /**

@@ -78,6 +78,23 @@ export function getActiveEmbeddingModelId() {
   return getEmbeddingModelInfo().current.id;
 }
 
+/**
+ * Combined status for an embedding model: in-memory load state + disk cache.
+ * Returns 'ready' | 'downloading' | 'loading' | 'error' | 'cached' | 'not_downloaded'.
+ * 'cached' = files are in the SW cache but the model isn't loaded into memory yet.
+ */
+export async function getModelCombinedStatus(modelId) {
+  const info = getEmbeddingModelInfo();
+  if (modelId === info.current.id) {
+    if (info.status === 'ready') return 'ready';
+    if (info.status === 'downloading' || info.status === 'loading') return info.status;
+    if (info.status === 'error') return 'error';
+    // 'idle' → fall through to the cache check below
+  }
+  const pattern = modelId.includes('/') ? modelId.split('/')[1] : modelId;
+  return (await checkModelCache(pattern)) ? 'cached' : 'not_downloaded';
+}
+
 // ─── Cache Inspection ──────────────────────────────────────────────
 
 /**

@@ -8,8 +8,10 @@
 
 import { state } from './state.js';
 
+export const EMBED_MODEL_KEY = 'rag-embed-model';
 let extractor = null;
 let modelName = 'Xenova/all-MiniLM-L6-v2';
+let initPromise = null; // in-flight load, so concurrent callers share one download
 
 // Hugging Face is often unreachable from some networks (especially CN), which
 // made model-file requests (config.json, tokenizer.json, ...) hang or 404 and
@@ -88,49 +90,74 @@ async function loadModel(remoteHost, onProgress) {
  * @param {function} [opts.onProgress] - Progress callback
  * @param {string} [opts.modelId] - Override model ID (switches model)
  */
+/**
+ * Set the active model name without loading it. Intended for startup only, to
+ * align the settings card/dropdown with the persisted choice before any load.
+ * Must not be called after a model has been loaded (it would desync modelName
+ * from the extractor).
+ */
+export function setModelName(id) {
+  if (!extractor) modelName = id;
+}
+
 export async function initModel(opts = {}) {
   const onProgress = typeof opts === 'function' ? opts : opts.onProgress;
-  const newModelId = opts.modelId || opts;
+  const targetModel = (typeof opts === 'object' && opts.modelId) || modelName;
 
-  // If switching to a different model, unload current first
-  if (newModelId && typeof newModelId === 'string' && newModelId !== modelName) {
+  // Switching to a different model: invalidate any in-flight load and unload.
+  if (targetModel !== modelName) {
+    initPromise = null;
     unloadModel();
-    modelName = newModelId;
+    modelName = targetModel;
   }
 
+  // Already loaded → report ready so the UI settles instead of a fake download.
   if (extractor) {
-    // Requested model is already loaded. Report ready so the UI settles instead
-    // of sitting at a fake "downloading" state.
     state.set('modelStatus', 'ready');
     onProgress?.({ status: 'ready' });
     return;
   }
 
-  try {
-    state.set('modelStatus', 'downloading');
-    state.set('modelProgress', 0);
+  // Concurrent callers join the same in-flight load (dedup → one download).
+  if (initPromise) return initPromise;
 
+  const p = (async () => {
+    const loadingModel = targetModel;
     let lastErr = null;
-    for (const remoteHost of MODEL_REMOTE_HOSTS) {
-      try {
-        extractor = await loadModel(remoteHost, onProgress);
-        state.set('modelStatus', 'ready');
-        state.set('modelProgress', 100);
-        onProgress?.({ status: 'ready' });
-        return;
-      } catch (err) {
-        console.warn('Embedding model load failed on', remoteHost, ':', err);
-        lastErr = err;
-        extractor = null;
+    try {
+      state.set('modelStatus', 'downloading');
+      state.set('modelProgress', 0);
+
+      for (const remoteHost of MODEL_REMOTE_HOSTS) {
+        try {
+          const ext = await loadModel(remoteHost, onProgress);
+          // Discard a stale result if the model was switched mid-load.
+          if (modelName !== loadingModel) return;
+          extractor = ext;
+          state.set('modelStatus', 'ready');
+          state.set('modelProgress', 100);
+          onProgress?.({ status: 'ready' });
+          // Persist the model we actually loaded (persist-on-load).
+          localStorage.setItem(EMBED_MODEL_KEY, modelName);
+          return;
+        } catch (err) {
+          console.warn('Embedding model load failed on', remoteHost, ':', err);
+          lastErr = err;
+        }
       }
+      throw lastErr || new Error('Failed to load embedding model on all hosts');
+    } catch (err) {
+      console.error('Model init failed:', err);
+      state.set('modelStatus', 'error');
+      onProgress?.({ status: 'error', error: err.message });
+      throw err;
+    } finally {
+      // Identity-aware: only clear if we are still the active in-flight load.
+      if (initPromise === p) initPromise = null;
     }
-    throw lastErr || new Error('Failed to load embedding model on all hosts');
-  } catch (err) {
-    console.error('Model init failed:', err);
-    state.set('modelStatus', 'error');
-    onProgress?.({ status: 'error', error: err.message });
-    throw err;
-  }
+  })();
+  initPromise = p;
+  return p;
 }
 
 /**

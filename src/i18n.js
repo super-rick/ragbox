@@ -137,7 +137,7 @@ const translations = {
     'settings.redownload': '🔄 Re-download',
     'settings.downloading': '⏳ Downloading...',
     'settings.loading': '⏳ Loading...',
-    'settings.webgpu_unavailable': '⚠ WebGPU not available',
+    'settings.webgpu_unavailable': '⚠ WebGPU not available — RAG Q&A needs HTTPS or localhost.',
     'settings.model_cache': '🗄️ Model Cache',
     'settings.cached_files': 'Cached files:',
     'settings.total_size': 'Total size:',
@@ -157,6 +157,9 @@ const translations = {
     'settings.status_error': 'Error',
     'settings.status_downloading': 'Downloading',
     'settings.status_loading': 'Loading',
+    'settings.status_cached': 'Cached',
+    'settings.status_not_downloaded': 'Not downloaded',
+    'settings.load': '⬇ Load',
     'settings.language_set': 'Language set to {name}',
 
     // Backup
@@ -326,7 +329,7 @@ const translations = {
     'settings.redownload': '🔄 重新下载',
     'settings.downloading': '⏳ 下载中...',
     'settings.loading': '⏳ 加载中...',
-    'settings.webgpu_unavailable': '⚠ 不可用 WebGPU',
+    'settings.webgpu_unavailable': '⚠ WebGPU 不可用 — RAG 问答需 HTTPS 或 localhost 访问。',
     'settings.model_cache': '🗄️ 模型缓存',
     'settings.cached_files': '已缓存文件：',
     'settings.total_size': '总大小：',
@@ -346,6 +349,9 @@ const translations = {
     'settings.status_error': '出错',
     'settings.status_downloading': '下载中',
     'settings.status_loading': '加载中',
+    'settings.status_cached': '已缓存',
+    'settings.status_not_downloaded': '未下载',
+    'settings.load': '⬇ 加载',
     'settings.language_set': '已切换语言：{name}',
 
     // Backup
