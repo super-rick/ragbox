@@ -113,7 +113,7 @@ export function showToast(message, type = 'info', duration = 3000) {
 
 // ─── Modal ──────────────────────────────────────────────────────
 
-export function showModal({ title, content, actions = [] }) {
+export function showModal({ title, content, actions = [], size = 'default' }) {
   const overlay = createElement('div', {
     className: 'modal-overlay',
     style: {
@@ -131,7 +131,7 @@ export function showModal({ title, content, actions = [] }) {
       color: 'var(--text-primary)',
       borderRadius: '12px',
       padding: '1.5rem',
-      maxWidth: '480px',
+      maxWidth: size === 'wide' ? '720px' : '480px',
       width: '90%',
       boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
     },

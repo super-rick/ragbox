@@ -61,6 +61,11 @@ const translations = {
     'result.collapse': 'Collapse',
     'result.from': 'From',
 
+    // Source viewer
+    'doc.view_source': 'View source',
+    'doc.page': 'Page {n}',
+    'doc.no_text': 'No full text available for this document.',
+
     // Theme
     'theme.light': 'Light',
     'theme.dark': 'Dark',
@@ -142,6 +147,11 @@ const translations = {
     'result.expand': '展开上下文',
     'result.collapse': '收起',
     'result.from': '来自',
+
+    // Source viewer
+    'doc.view_source': '查看原文',
+    'doc.page': '第 {n} 页',
+    'doc.no_text': '该文档暂无全文。',
 
     // Theme
     'theme.light': '浅色',

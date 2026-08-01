@@ -380,6 +380,38 @@
     #model-download-dialog p { font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 1rem; }
     #model-download-bar { margin-bottom: 0.75rem; }
 
+    /* ─── Source Document Viewer ─────────────────────────────── */
+    .doc-viewer-content { max-height: 70vh; overflow-y: auto; }
+    .doc-viewer-content pre {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+      font-size: 0.875rem;
+      line-height: 1.6;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      margin: 0 0 1rem 0;
+    }
+    .result-doc-link {
+      color: var(--accent);
+      cursor: pointer;
+      text-decoration: none;
+      border-bottom: 1px dotted var(--accent);
+    }
+    .result-doc-link:hover { text-decoration: underline; }
+    .doc-item-view {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+      padding: 2px 6px;
+      border-radius: var(--radius-sm);
+    }
+    .doc-item-view:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+
     /* ─── Q&A Panel ──────────────────────────────────────────── */
     .qa-message {
       padding: 0.75rem 1rem;

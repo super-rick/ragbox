@@ -9,7 +9,7 @@ import { $, $$, createElement, showToast, showModal, renderStats, renderEmptySta
 import { t, setLocale, getLocale } from './i18n.js';
 import { openDB, createKB, listKBs, getKB, updateKB, deleteKB, getKBStats,
          addDocument, updateDocument, listDocuments, getDocument, deleteDocument,
-         addChunks, getChunksByKB, getStorageEstimate } from './db.js';
+         addChunks, getChunksByKB, getStorageEstimate, getDocumentText } from './db.js';
 import { chunkText, estimateTokens } from './chunker.js';
 import { extractPDFText } from './pdf-extractor.js';
 import { readFileAsArrayBuffer, readFileAsText, setupDragDrop, setupFileInput,
@@ -451,6 +451,7 @@ async function processSingleFile(file, kbId, progressContainer) {
     statusText.textContent = t('ingestion.extracting');
     let text = '';
     let pageCount = 0;
+    let pageTexts = null;
 
     if (ext === 'pdf') {
       const arrayBuf = await readFileAsArrayBuffer(file);
@@ -461,6 +462,7 @@ async function processSingleFile(file, kbId, progressContainer) {
       });
       text = result.fullText;
       pageCount = result.pageCount;
+      pageTexts = result.pages ? result.pages.map((p) => p.text) : null;
     } else if (ext === 'txt') {
       text = await readFileAsText(file);
     } else if (ext === 'md') {
@@ -501,6 +503,8 @@ async function processSingleFile(file, kbId, progressContainer) {
       size: file.size,
       pageCount,
       chunkCount: chunks.length,
+      fullText: ext === 'pdf' ? null : text,      // PDF stores pageTexts instead
+      pageTexts: ext === 'pdf' ? pageTexts : null,
     });
 
     const chunkRecords = chunks.map((c, i) => ({
@@ -631,6 +635,33 @@ function renderModelChangeNotice(container) {
   container.prepend(notice);
 }
 
+/**
+ * Open the full source text of a document in a modal viewer.
+ * PDFs render per-page; TXT/MD show the full text; legacy documents (ingested
+ * before fullText/pageTexts existed) are reconstructed from their chunks.
+ */
+async function openDocumentViewer(docId) {
+  const doc = await getDocument(docId);
+  const { text, pageTexts } = await getDocumentText(docId);
+
+  const content = createElement('div', { className: 'doc-viewer-content' });
+
+  if (pageTexts && pageTexts.length > 0) {
+    pageTexts.forEach((page, i) => {
+      content.append(createElement('h4', {
+        style: { margin: '0 0 0.5rem 0', color: 'var(--text-secondary)', fontSize: '0.8125rem', fontWeight: '600' },
+      }, ['📄 ' + t('doc.page', { n: i + 1 })]));
+      content.append(createElement('pre', {}, [page]));
+    });
+  } else if (text) {
+    content.append(createElement('pre', {}, [text]));
+  } else {
+    content.append(createElement('p', { style: { color: 'var(--text-secondary)' } }, [t('doc.no_text')]));
+  }
+
+  showModal({ title: doc?.name || 'Document', content, size: 'wide' });
+}
+
 function renderSearchResults(results, query) {
   const container = $('#results-container');
   container.innerHTML = '';
@@ -655,9 +686,16 @@ function renderSearchResults(results, query) {
     // Header (doc name + score)
     const header = createElement('div', { className: 'result-header' });
     const source = createElement('span', { className: 'result-source' });
-    source.textContent = result.pageNumber
-      ? `${t('result.from')} ${result.docName}, p.${result.pageNumber}`
-      : `${t('result.from')} ${result.docName}`;
+    source.append(t('result.from') + ' ');
+    const docLink = createElement('a', { href: '#', className: 'result-doc-link', title: t('doc.view_source') }, [result.docName]);
+    docLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      openDocumentViewer(result.docId);
+    });
+    source.append(docLink);
+    if (result.pageNumber) {
+      source.append(', p.' + result.pageNumber);
+    }
     header.append(source);
 
     const scorePct = Math.round(result.score * 100);
@@ -827,6 +865,13 @@ async function refreshDocList() {
     const icon = doc.type === 'pdf' ? '📕' : doc.type === 'md' ? '📝' : '📄';
     nameSpan.textContent = `${icon} ${doc.name}`;
     item.append(nameSpan);
+
+    const viewBtn = createElement('button', { className: 'doc-item-view', title: t('doc.view_source') }, ['👁']);
+    viewBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openDocumentViewer(doc.id);
+    });
+    item.append(viewBtn);
 
     const delBtn = createElement('button', { className: 'doc-item-delete' }, ['✕']);
     delBtn.addEventListener('click', (e) => {

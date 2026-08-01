@@ -218,7 +218,7 @@ export function getKBStats(kbId) {
 
 // ─── Documents ──────────────────────────────────────────────────
 
-export function addDocument({ kbId, name, type, size, pageCount = 0, chunkCount = 0 }) {
+export function addDocument({ kbId, name, type, size, pageCount = 0, chunkCount = 0, fullText = null, pageTexts = null }) {
   const doc = {
     id: 'doc-' + genId(),
     kbId,
@@ -227,6 +227,8 @@ export function addDocument({ kbId, name, type, size, pageCount = 0, chunkCount 
     size,
     pageCount,
     chunkCount,
+    fullText,    // TXT/MD: full extracted text (for the source viewer)
+    pageTexts,   // PDF: array of per-page text (page-accurate source viewer)
     createdAt: Date.now(),
   };
   return runTransaction('documents', 'readwrite', (store) => {
@@ -346,6 +348,28 @@ export function getChunksByKB(kbId) {
       req.onerror = () => reject(req.error);
     });
   });
+}
+
+/**
+ * Get a document's full text for the source viewer.
+ * Prefers stored pageTexts (PDF) or fullText (TXT/MD); falls back to
+ * reconstructing from chunks for documents ingested before these fields
+ * existed (chunk ids are `chunk-<docId>-<i>`, i.e. ingestion order).
+ */
+export async function getDocumentText(docId) {
+  const doc = await getDocument(docId);
+  if (!doc) return { text: '', pageTexts: null };
+
+  if (Array.isArray(doc.pageTexts) && doc.pageTexts.length) {
+    return { text: doc.pageTexts.join('\n\n'), pageTexts: doc.pageTexts };
+  }
+  if (typeof doc.fullText === 'string' && doc.fullText.length) {
+    return { text: doc.fullText, pageTexts: null };
+  }
+
+  const chunks = await getChunksByDoc(docId);
+  chunks.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  return { text: chunks.map((c) => c.text).join('\n\n'), pageTexts: null };
 }
 
 export function deleteChunksByDoc(docId) {
